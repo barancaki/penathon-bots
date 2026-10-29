@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <rect x="64" y="64" width="896" height="896" rx="216" fill="#1f2125"/>
+  <rect x="64.5" y="64.5" width="895" height="895" rx="215.5" fill="none" stroke="#ffffff" stroke-opacity="0.07"/>
+  <!-- Two team members behind the Chief -->
+  <circle cx="300" cy="640" r="118" fill="#2FB38A"/>
+  <circle cx="724" cy="640" r="118" fill="#E8A23B"/>
+  <g fill="#ffffff" opacity="0.9">
+    <rect x="248" y="626" width="40" height="18" rx="9"/>
+    <rect x="312" y="626" width="40" height="18" rx="9"/>
+    <ellipse cx="696" cy="630" rx="17" ry="21"/>
+    <ellipse cx="752" cy="630" rx="17" ry="21"/>
+  </g>
+  <!-- Chief -->
+  <g transform="translate(512 470) scale(9.2) translate(-20 -20)">
+    <path d="M20 1.8c1 0 2 .26 2.9.78l11.6 6.7a5.8 5.8 0 0 1 2.9 5.02v11.4a5.8 5.8 0 0 1-2.9 5.02l-11.6 6.7a5.8 5.8 0 0 1-5.8 0L5.5 30.72a5.8 5.8 0 0 1-2.9-5.02V14.3a5.8 5.8 0 0 1 2.9-5.02l11.6-6.7c.9-.52 1.9-.78 2.9-.78Z" fill="#6E6AF0" stroke="#1f2125" stroke-width="1.6"/>
+    <path d="M8 13a14 14 0 0 1 24 0" stroke="#ffffff" stroke-opacity="0.18" stroke-width="3" fill="none" stroke-linecap="round"/>
+    <ellipse cx="14.5" cy="19.5" rx="2.6" ry="3.1" fill="#ffffff"/>
+    <ellipse cx="25.5" cy="19.5" rx="2.6" ry="3.1" fill="#ffffff"/>
+  </g>
+</svg>

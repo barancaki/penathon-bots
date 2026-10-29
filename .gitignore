@@ -1,0 +1,14 @@
+node_modules/
+out/
+dist/
+release/
+.env*
+userData/
+userData*/
+*.log
+.npm-cache/
+.cache/
+.tmp/
+coverage/
+*.tsbuildinfo
+.vitest/

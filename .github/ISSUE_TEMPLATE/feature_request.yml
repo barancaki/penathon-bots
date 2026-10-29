@@ -1,0 +1,26 @@
+name: Feature request
+description: Suggest an improvement to Penathon Bots.
+title: '[Feature]: '
+body:
+  - type: markdown
+    attributes:
+      value: Please search existing issues first and use generic examples without private data.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: Describe the task you are trying to complete and who it helps.
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: Describe how you would expect it to work.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Include current workarounds, if any.

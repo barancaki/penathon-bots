@@ -1,0 +1,241 @@
+/* Routines and work reports, under the live work view in the right panel. */
+
+.panel > .scroll {
+  flex: 1 1 auto;
+}
+.routines {
+  flex: 0 1 auto;
+  max-height: 58%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--line);
+  background: color-mix(in oklab, var(--canvas) 60%, var(--rail));
+}
+.routines-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.routines-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 0 12px 8px;
+}
+.routines-empty {
+  margin: 4px 4px 8px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.routine-list,
+.run-list,
+.report-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.routine {
+  border-radius: var(--radius-m);
+}
+.routine.open {
+  background: var(--raised);
+  box-shadow: 0 0 0 1px var(--line);
+  margin: 4px 0;
+}
+.routine-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.routine-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  border-radius: var(--radius-m);
+  text-align: left;
+}
+.routine:not(.open) .routine-main:hover {
+  background: var(--sunken);
+}
+.routine-main .chev {
+  color: var(--faint);
+  transition: transform 0.15s ease;
+}
+.routine.open .routine-main .chev {
+  transform: rotate(90deg);
+}
+.routine-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.routine-name {
+  font-size: 13px;
+  font-weight: 580;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.routine-when {
+  font-size: 12px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.routine.paused .routine-name,
+.routine.paused .run-dot {
+  opacity: 0.55;
+}
+.run-dot {
+  flex-shrink: 0;
+  color: var(--faint);
+}
+.run-dot.done {
+  color: var(--ok);
+}
+.run-dot.error {
+  color: var(--danger);
+}
+.run-dot.running {
+  color: var(--bot-ink);
+}
+
+/* on/off switch */
+.switch {
+  flex-shrink: 0;
+  width: 30px;
+  height: 18px;
+  margin-right: 6px;
+  border-radius: 999px;
+  background: var(--line-strong);
+  position: relative;
+  transition: background 0.15s ease;
+}
+.switch span {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--raised);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.25);
+  transition: transform 0.15s ease;
+}
+.switch[aria-checked='true'] {
+  background: var(--bot);
+}
+.switch[aria-checked='true'] span {
+  transform: translateX(12px);
+}
+
+.routine-detail {
+  padding: 0 10px 10px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.routine-prompt {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--ink-soft);
+}
+.routine-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.run-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.run-list li,
+.report-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 12.5px;
+}
+.run-list li .run-dot {
+  margin-top: 2px;
+}
+.run-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.run-status {
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.run-status.s-error {
+  color: var(--danger);
+}
+.run-status.s-done {
+  color: var(--ok);
+}
+.run-summary {
+  margin: 2px 0 0;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+/* reports (Chief) */
+.reports {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.report-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.report-from {
+  font-weight: 580;
+  color: var(--ink);
+}
+
+/* instruction box */
+.routine-ask {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  margin: 0 12px 12px;
+  padding: 6px 6px 6px 10px;
+  border-radius: var(--radius-m);
+  border: 1px solid var(--line);
+  background: var(--raised);
+}
+.routine-ask:focus-within {
+  border-color: color-mix(in oklab, var(--bot) 55%, var(--line));
+}
+.routine-ask textarea {
+  flex: 1;
+  min-width: 0;
+  resize: none;
+  border: 0;
+  outline: none;
+  background: transparent;
+  font-size: 12.5px;
+  line-height: 1.45;
+  padding: 3px 0;
+}
+.routine-card-name {
+  margin: 0 0 8px;
+  font-size: 15px;
+}
+.before-inline {
+  color: var(--faint);
+  text-decoration: line-through;
+}

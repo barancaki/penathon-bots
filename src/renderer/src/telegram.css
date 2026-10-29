@@ -1,0 +1,131 @@
+/* Telegram bridge section in Settings. */
+
+.settings-form fieldset.telegram {
+  gap: 12px;
+}
+.tg-step {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+.tg-num {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--sunken);
+  color: var(--ink-soft);
+  font-size: 12px;
+  font-weight: 650;
+}
+.tg-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+.tg-row {
+  display: flex;
+  gap: 8px;
+}
+.tg-row input {
+  flex: 1;
+  min-width: 0;
+}
+.tg-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--ink);
+}
+.tg-status .link {
+  margin-left: auto;
+}
+.tg-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--faint);
+}
+.tg-dot.on {
+  background: var(--ok);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--ok) 22%, transparent);
+}
+.tg-code {
+  align-self: flex-start;
+  padding: 6px 12px;
+  border-radius: var(--radius-s);
+  background: var(--canvas);
+  border: 1px dashed var(--line-strong);
+  font-family: var(--font-code);
+  font-size: 15px;
+  letter-spacing: 0.06em;
+  color: var(--ink);
+  user-select: all;
+}
+.tg-error {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: var(--radius-s);
+  background: var(--danger-wash);
+  color: var(--danger);
+  font-size: 12.5px;
+}
+.tg-options {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 4px;
+  border-top: 1px solid var(--line);
+}
+.tg-option {
+  display: grid;
+  grid-template-columns: 140px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+.tg-route {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.settings-form label.tg-check {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+.settings-form button.link {
+  height: auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: 12.5px;
+}
+
+/* notifications section */
+.settings-form fieldset.notify {
+  gap: 10px;
+}
+.notify-hint {
+  display: block;
+  margin-top: 2px;
+}
+.notify-kinds {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-left: 24px;
+}
+.notify-kinds.off {
+  opacity: 0.5;
+}

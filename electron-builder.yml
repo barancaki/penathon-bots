@@ -1,0 +1,35 @@
+appId: co.penathon.bots
+productName: Penathon Bots
+directories:
+  output: release
+  buildResources: build
+files:
+  - out/**/*
+  - build/icon.png
+  - package.json
+  - LICENSE
+  - NOTICE
+asar: true
+asarUnpack:
+  - node_modules/@anthropic-ai/claude-agent-sdk*/**/*
+  - node_modules/@openai/codex*/**/*
+npmRebuild: false
+win:
+  target: nsis
+  icon: build/icon.ico
+nsis:
+  include: build/installer.nsh
+  oneClick: false
+  perMachine: false
+  allowElevation: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: always
+  createStartMenuShortcut: true
+  deleteAppDataOnUninstall: false
+mac:
+  target:
+    - target: dmg
+      arch: [arm64, x64]
+  identity: null
+  icon: build/icon.png
+  category: public.app-category.productivity

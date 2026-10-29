@@ -1,0 +1,61 @@
+name: Bug report
+description: Report a reproducible problem in Penathon Bots.
+title: '[Bug]: '
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For vulnerabilities, follow our [Security policy](https://github.com/barancaki/penathon-bots/security/policy) instead of filing an issue.
+        Remove secrets, personal data, client names, and private paths from your report.
+  - type: input
+    id: version
+    attributes:
+      label: App version or commit
+      placeholder: 'e.g. 0.2.4'
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Operating system and architecture
+      placeholder: 'e.g. macOS 15, arm64'
+    validations:
+      required: true
+  - type: dropdown
+    id: engine
+    attributes:
+      label: Affected engine
+      options:
+        - Claude Code
+        - Codex
+        - Both
+        - Not engine-specific
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Include the smallest example that reproduces the problem.
+      placeholder: |
+        1. Open ...
+        2. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Screenshots or sanitized logs
+      description: Optional. Review attachments for secrets and private information before submitting.
