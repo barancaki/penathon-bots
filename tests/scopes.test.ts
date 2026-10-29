@@ -157,8 +157,9 @@ it('uses path boundaries and canonical paths, denying traversal and symlink esca
 
 it('checks native tools and MCP URIs against the same canonical roots through short-name aliases', async () => {
   directory = await temporaryDirectory();
-  const home = join(directory, 'runneradmin');
-  const alias = join(directory, 'RUNNER~1');
+  // Keep the embedded ~ without colliding with the real directory's NTFS short name.
+  const home = join(directory, 'long-real-home');
+  const alias = join(directory, 'ALIAS~9');
   const work = join(home, 'work');
   const outside = join(home, 'work-extra');
   await mkdir(work, { recursive: true });

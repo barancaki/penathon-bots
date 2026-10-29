@@ -412,8 +412,9 @@ it.each([false, true])(
     mockStream(vi.fn().mockResolvedValue([status('filesystem')]));
     const run = input(['filesystem']);
     // Keep denied paths out of scope even when TMPDIR is inside the repository.
-    const realHome = join(configDir, 'runneradmin');
-    const alias = join(configDir, 'RUNNER~1');
+    // Keep the embedded ~ without colliding with the real directory's NTFS short name.
+    const realHome = join(configDir, 'long-real-home');
+    const alias = join(configDir, 'ALIAS~9');
     await mkdir(join(realHome, 'work'), { recursive: true });
     await symlink(realHome, alias, process.platform === 'win32' ? 'junction' : 'dir');
     const workdir = join(alias, 'work');
