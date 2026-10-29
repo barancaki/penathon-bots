@@ -31,7 +31,7 @@ Get an installer from [GitHub Releases](https://github.com/barancaki/penathon-bo
 
 **Windows:** the installer is unsigned. If SmartScreen appears, choose **More info → Run anyway** after verifying that you downloaded the release you intended to install.
 
-**macOS:** builds are unsigned and not notarized. Move the app to Applications, then right-click it and choose **Open**. If macOS still blocks a trusted download, remove its quarantine attribute:
+**macOS:** builds are for Apple Silicon (arm64) only, unsigned and not notarized. Intel Mac users can build from source on an Intel Mac. Move the app to Applications, then right-click it and choose **Open**. If macOS still blocks a trusted download, remove its quarantine attribute:
 
 ```sh
 xattr -dr com.apple.quarantine "/Applications/Penathon Bots.app"
@@ -112,7 +112,7 @@ npm run dist:win
 npm run dist:mac
 ```
 
-The Windows target is NSIS. The macOS targets are unsigned DMGs for arm64 and x64, with signing explicitly disabled. Installer artifacts go in `release/`; packaging may download Electron or packaging tools.
+The Windows target is NSIS. The macOS target is an unsigned DMG for Apple Silicon (arm64) only, with signing explicitly disabled. Intel Mac users can build from source on an Intel Mac. Installer artifacts go in `release/`; packaging may download Electron or packaging tools.
 
 ## Architecture
 

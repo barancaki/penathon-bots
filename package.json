@@ -24,8 +24,8 @@
     "dev:ui": "electron-vite dev --rendererOnly",
     "icons": "node scripts/build-icons.mjs",
     "prebuild": "npm run icons",
-    "dist:win": "npm run build && electron-builder --win",
-    "dist:mac": "npm run build && electron-builder --mac"
+    "dist:win": "npm run build && electron-builder --win --publish never",
+    "dist:mac": "npm run build && electron-builder --mac --publish never"
   },
   "engines": {
     "node": ">=22.22.0"
