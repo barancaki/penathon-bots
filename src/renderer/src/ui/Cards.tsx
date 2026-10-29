@@ -16,7 +16,7 @@ import {
 } from './icons';
 import { LevelChip } from './ProjectsSheet';
 import { scheduleText } from './Routines';
-import type { Routine } from '../../../shared/routines';
+import { routineName, routinePrompt, type Routine } from '../../../shared/routines';
 import { Markdown } from './Markdown';
 import type { ApprovalResolution } from './state';
 import type { T } from './strings';
@@ -256,7 +256,7 @@ export function ApprovalCard({
         </div>
         {routine ? (
           <>
-            <h4 className="routine-card-name">{routine.name}</h4>
+            <h4 className="routine-card-name">{t(routineName(routine, data?.botId ?? ''))}</h4>
             <dl className="facts">
               <Fact label={t('card.when')}>
                 {data?.before?.schedule && (
@@ -272,7 +272,7 @@ export function ApprovalCard({
             </dl>
             <details className="card-more" open>
               <summary>{t('card.task')}</summary>
-              <Markdown text={routine.prompt} />
+              <Markdown text={t(routinePrompt(routine, data?.botId ?? ''))} />
             </details>
           </>
         ) : (

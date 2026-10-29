@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { Bot } from '../../../shared/bots';
 import type { Language } from '../../../shared/i18n';
 import type { RoutineRun, RoutineState, Schedule, WorkReport } from '../../../shared/routines';
+import { routineName, routinePrompt } from '../../../shared/routines';
 import { Avatar } from './Avatar';
 import { AlertIcon, CheckIcon, ChevronIcon, ClockIcon, SendIcon, SpinnerIcon } from './icons';
 import { formatDuration, shorten } from './state';
@@ -199,7 +200,7 @@ function RoutineRow({
         <button type="button" className="routine-main" onClick={onToggleOpen} aria-expanded={open}>
           <RunDot run={lastRun} />
           <span className="routine-text">
-            <span className="routine-name">{routine.name}</span>
+            <span className="routine-name">{t(routineName(routine, state.botId))}</span>
             <span className="routine-when">
               {scheduleText(routine.schedule, t)}
               {routine.enabled && nextRunAt
@@ -225,7 +226,7 @@ function RoutineRow({
       </div>
       {open && (
         <div className="routine-detail">
-          <p className="routine-prompt">{shorten(routine.prompt, 220)}</p>
+          <p className="routine-prompt">{shorten(t(routinePrompt(routine, state.botId)), 220)}</p>
           <div className="routine-actions">
             <button type="button" className="btn" disabled={starting} onClick={() => void runNow()}>
               {t('routines.runNow')}
@@ -249,7 +250,7 @@ function RoutineRow({
                       {t(`routines.status.${run.status}`)}
                     </span>
                   </div>
-                  {run.summary && <p className="run-summary">{shorten(run.summary, 160)}</p>}
+                  {run.summary && <p className="run-summary">{shorten(t(run.summary), 160)}</p>}
                 </div>
                 {run.status !== 'skipped' && (
                   <button

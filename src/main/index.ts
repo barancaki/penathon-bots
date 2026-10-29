@@ -136,6 +136,7 @@ async function start(): Promise<void> {
       desktop?.onChat(event);
     },
     projects,
+    () => settings.get().language,
   );
   telegram = new TelegramBridge(
     settings,

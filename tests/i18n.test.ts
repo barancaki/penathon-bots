@@ -35,3 +35,22 @@ it.each(['tr', 'en'] as const)(
     expect(translate(language, key)).not.toBe(key);
   },
 );
+
+it.each(['en', 'tr'] as const)(
+  'translates built-in routine notices and status summaries in %s',
+  (language) => {
+    for (const key of [
+      'routines.reportProcessing',
+      'routines.reportPrompt',
+      'routines.processOneReport',
+      'notice.incompatibleRoutineModel',
+      'errors.appClosed',
+      'errors.runCancelled',
+      'errors.botBusy',
+    ]) {
+      const text = translate(language, key);
+      expect(text).not.toBe(key);
+      if (language === 'en') expect(text).not.toMatch(/[ğüşıöçĞÜŞİÖÇ]/);
+    }
+  },
+);

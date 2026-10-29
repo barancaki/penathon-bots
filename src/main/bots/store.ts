@@ -35,12 +35,14 @@ import { redact } from '../engines/common';
 import chiefTemplate from './chief.md?raw';
 import { legacyChiefInstructions } from './legacy-chief';
 import {
+  reportProcessingKey,
   routineDraftSchema,
   routineSchema,
   type Routine,
   type RoutineDraft,
 } from '../../shared/routines';
 import { vaultRoutine } from '../routines';
+import { translate } from '../../shared/i18n';
 
 export function parseBot(source: string): Bot {
   const reject = () => {
@@ -86,7 +88,13 @@ export function chiefBot(workdir: string, language: 'tr' | 'en'): Bot {
     readScope: [workdir],
     writeScope: [workdir],
     system: true,
-    routines: [vaultRoutine],
+    routines: [
+      {
+        ...vaultRoutine,
+        name: translate(language, reportProcessingKey),
+        prompt: translate(language, 'routines.reportPrompt'),
+      },
+    ],
     instructions,
   });
 }

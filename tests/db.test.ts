@@ -281,3 +281,58 @@ it('identifies plain, routine and room runs for desktop notification routing', (
   expect(db.runInfo(reply.runId)).toMatchObject({ roomId: room.id, routineId: undefined });
   expect(() => db!.runInfo('missing')).toThrow('errors.runMissing');
 });
+
+it('migrates only old automatic report titles and preserves renamed or unrelated conversations', async () => {
+  directory = await temporaryDirectory();
+  const path = join(directory, 'titles.sqlite');
+  db = new Repository(path);
+  const chief = testBot(directory, { id: 'chief', system: true });
+  const automatic = db.start(chief, 'Process reports', undefined, {
+    title: 'Vault güncelleme',
+    routineId: 'vault-update',
+  });
+  const single = db.start(
+    chief,
+    'list_reports ile bekleyen raporları al.\n\nYalnız şu raporu işle; diğer raporlara dokunma: {}',
+    undefined,
+    { title: 'Vault güncelleme' },
+  );
+  const renamed = db.start(chief, 'Process reports', undefined, {
+    title: 'My reports',
+    routineId: 'vault-update',
+  });
+  const manual = db.start(chief, 'Vault güncelleme');
+  const otherRoutine = db.start(chief, 'Custom task', undefined, {
+    title: 'Vault güncelleme',
+    routineId: 'custom',
+  });
+  const otherBot = db.start(testBot(directory), 'Custom task', undefined, {
+    title: 'Vault güncelleme',
+    routineId: 'vault-update',
+  });
+  db.skipRoutine('chief', 'vault-update', 'bot meşguldü');
+  const cancelled = db.start(chief, 'Cancel', undefined, { routineId: 'vault-update' });
+  db.append(cancelled.runId, { type: 'run.done', durationMs: 1, cancelled: true });
+  expect(
+    db.routineRuns('chief', 'vault-update').find((run) => run.id === cancelled.runId)?.summary,
+  ).toBe('errors.runCancelled');
+  for (let reopen = 0; reopen < 2; reopen++) {
+    db.close();
+    db = new Repository(path);
+    for (const run of [automatic, single]) {
+      expect(db.get(run.conversationId).conversation.title).toBe('routines.reportProcessing');
+      expect(db.list('chief').find((c) => c.id === run.conversationId)?.title).toBe(
+        'routines.reportProcessing',
+      );
+    }
+    expect(db.get(renamed.conversationId).conversation.title).toBe('My reports');
+    for (const run of [manual, otherRoutine, otherBot])
+      expect(db.get(run.conversationId).conversation.title).toBe('Vault güncelleme');
+    expect(
+      db.routineRuns('chief', 'vault-update').find((run) => run.status === 'skipped')?.summary,
+    ).toBe('errors.botBusy');
+    expect(
+      db.routineRuns('chief', 'vault-update').find((run) => run.id === automatic.runId)?.summary,
+    ).toBe('errors.appClosed');
+  }
+});

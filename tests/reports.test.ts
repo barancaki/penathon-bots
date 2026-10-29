@@ -5,6 +5,8 @@ import type { Project } from '../src/shared/projects';
 import { BotStore, chiefBot } from '../src/main/bots/store';
 import { ChatService } from '../src/main/chat';
 import { Repository } from '../src/main/db';
+import { makeT } from '../src/renderer/src/ui/strings';
+import { translate } from '../src/shared/i18n';
 import type { BotEvent } from '../src/shared/events';
 import type { EngineAdapter, RunInput } from '../src/main/engines/types';
 import { removeTemporary, temporaryDirectory } from './helpers';
@@ -271,7 +273,7 @@ it.each(['knowledge', 'write', 'full'] as const)(
       expect(input.prompt).toContain(first.id);
       expect(input.prompt).not.toContain(other.id);
       expect(input.prompt).toContain('AGENTS.md/CLAUDE.md');
-      expect(input.prompt).toContain('kod projesini otomatik vault sayma');
+      expect(input.prompt).toContain('do not assume a code project is a vault');
       expect(await input.callTool!('list_reports', { pending: true })).toMatchObject([
         { id: first.id },
       ]);
@@ -283,7 +285,7 @@ it.each(['knowledge', 'write', 'full'] as const)(
     };
     const run = await chat.processReportNow(first.id);
     await expect.poll(() => chat.isBotActive('chief')).toBe(false);
-    expect(db.get(run.conversationId).conversation.title).toBe('Vault güncelleme');
+    expect(db.get(run.conversationId).conversation.title).toBe('routines.reportProcessing');
     expect(db.report(first.id)).toMatchObject({
       processedAt: expect.any(String),
       processedInto: into,
@@ -354,3 +356,31 @@ it('preserves the configured model when process-now starts a Codex Chief', async
     message: expect.stringContaining('haiku'),
   });
 });
+
+it.each(['en', 'tr'] as const)(
+  'localizes process-now titles and prompts in %s',
+  async (language) => {
+    knowledgeDir = dir;
+    vi.spyOn(chat, 'language').mockReturnValue(language);
+    const report = db.addReport({
+      botId: 'worker',
+      conversationId: 'source',
+      summary: 'Done',
+      decisions: [],
+      files: [],
+      open: [],
+      source: 'bot',
+    });
+    const run = await chat.processReportNow(report.id);
+    await expect.poll(() => chat.isBotActive('chief')).toBe(false);
+    expect(makeT(language)(db.get(run.conversationId).conversation.title)).toBe(
+      language === 'en' ? 'Report processing' : 'Rapor işleme',
+    );
+    const prefix =
+      translate(language, 'routines.reportPrompt') +
+      '\n\n' +
+      translate(language, 'routines.processOneReport');
+    expect(inputs[0].prompt.startsWith(prefix)).toBe(true);
+    expect(JSON.parse(inputs[0].prompt.slice(prefix.length))).toEqual(report);
+  },
+);

@@ -77,7 +77,7 @@ export function History({
                     setOpen(false);
                   }}
                 >
-                  <span className="history-title">{item.title}</span>
+                  <span className="history-title">{t(item.title)}</span>
                   <span className="menu-hint">{when.format(new Date(item.createdAt))}</span>
                 </button>
                 {confirming === item.id ? (
@@ -102,7 +102,7 @@ export function History({
                     type="button"
                     className="history-delete"
                     title={t('history.delete')}
-                    aria-label={`${t('history.delete')}: ${item.title}`}
+                    aria-label={`${t('history.delete')}: ${t(item.title)}`}
                     onClick={() => setConfirming(item.id)}
                   >
                     <TrashIcon size={14} />

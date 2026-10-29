@@ -803,10 +803,9 @@ it.each(['delegation', 'temporary', 'room-chain'] as const)(
       const request = events
         .filter((envelope) => envelope.event.type === 'approval.request')
         .at(-1)!;
-      expect(db.runInfo(request.rootRunId!)).toMatchObject({
-        botId: 'chief',
-        conversationId: settings.get().telegram.conversationId,
-      });
+      const root = db.runInfo(request.rootRunId!);
+      expect(root.botId).toBe('chief');
+      await expect.poll(() => settings.get().telegram.conversationId).toBe(root.conversationId);
       expect(request.runId).not.toBe(request.rootRunId);
       if (request.event.type !== 'approval.request') throw new Error('missing approval');
       await chat.approvals.respond(request.event.approvalId, 'approved');

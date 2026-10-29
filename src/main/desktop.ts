@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { channels, type AppActivity, type AppView } from '../shared/api';
 import type { Settings, SettingsPatch } from '../shared/settings';
 import type { EventEnvelope } from '../shared/events';
-import type { RoutineRun } from '../shared/routines';
+import { routineName, type RoutineRun } from '../shared/routines';
 import type { RoomMessage } from '../shared/rooms';
 import type { BotStore } from './bots/store';
 import type { Repository } from './db';
@@ -254,11 +254,14 @@ export class Desktop {
   onRoutine(run: RoutineRun): void {
     if (this.quitting) return;
     const bot = this.services.bots().get(run.botId);
+    const routine = bot.routines.find((routine) => routine.id === run.routineId);
     this.enqueue({
       id: run.id,
       type: 'routine.finished',
       botName: bot.name,
-      name: bot.routines.find((routine) => routine.id === run.routineId)?.name ?? run.routineId,
+      name: routine
+        ? translate(this.services.settings().language, routineName(routine, bot.id))
+        : run.routineId,
       status: run.status,
       target: {
         botId: run.botId,

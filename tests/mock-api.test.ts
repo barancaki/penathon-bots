@@ -120,9 +120,10 @@ it('provides sample routines, histories and reports, with routine approval and w
   const reportChanged = vi.fn();
   const offReports = mockApi.reports.onChanged(reportChanged);
   const processed = await mockApi.reports.processNow(pending[0].id);
-  expect((await mockApi.conversations.get(processed.conversationId)).conversation.botId).toBe(
-    'chief',
-  );
+  expect((await mockApi.conversations.get(processed.conversationId)).conversation).toMatchObject({
+    botId: 'chief',
+    title: 'routines.reportProcessing',
+  });
   await vi.advanceTimersByTimeAsync(1500);
   expect(await mockApi.reports.list({ pending: true })).toHaveLength(2);
   expect(reportChanged).toHaveBeenCalledTimes(1);

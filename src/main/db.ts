@@ -61,10 +61,30 @@ export class Repository extends EventEmitter {
           UPDATE schema_version SET version = 3;
         `);
       });
+    // Only old automatic report-processing titles are migrated; user titles stay intact.
+    this.db
+      .prepare(
+        `
+      UPDATE conversations SET title = 'routines.reportProcessing'
+      WHERE botId = 'chief' AND title = 'Vault güncelleme' AND (
+        EXISTS (SELECT 1 FROM routine_runs r WHERE r.conversationId = conversations.id
+          AND r.botId = 'chief' AND r.routineId = 'vault-update')
+        OR EXISTS (SELECT 1 FROM messages m WHERE m.conversationId = conversations.id
+          AND m.role = 'user' AND m.text LIKE 'list_reports ile bekleyen raporları al.%'
+          AND instr(m.text, 'Yalnız şu raporu işle; diğer raporlara dokunma: ') > 0)
+      )
+    `,
+      )
+      .run();
+    this.db.exec(`
+      UPDATE routine_runs SET summary = 'errors.botBusy' WHERE status = 'skipped' AND summary = 'bot meşguldü';
+      UPDATE routine_runs SET summary = 'errors.appClosed' WHERE status = 'cancelled' AND summary IN ('Uygulama kapandı', 'Uygulama kapandÄ±');
+      UPDATE routine_runs SET summary = 'errors.runCancelled' WHERE status = 'cancelled' AND summary IN ('Koşu iptal edildi', 'KoÅŸu iptal edildi');
+    `);
     const now = new Date().toISOString();
     this.db
       .prepare(
-        "UPDATE routine_runs SET status = 'cancelled', finishedAt = ?, durationMs = MAX(0, CAST((julianday(?) - julianday(startedAt)) * 86400000 AS INTEGER)), summary = 'Uygulama kapandÄ±' WHERE status = 'running'",
+        "UPDATE routine_runs SET status = 'cancelled', finishedAt = ?, durationMs = MAX(0, CAST((julianday(?) - julianday(startedAt)) * 86400000 AS INTEGER)), summary = 'errors.appClosed' WHERE status = 'running'",
       )
       .run(now, now);
     const unresolved = this.db
@@ -304,7 +324,7 @@ export class Repository extends EventEmitter {
             (event.type === 'run.error'
               ? event.message
               : event.cancelled
-                ? 'KoÅŸu iptal edildi'
+                ? 'errors.runCancelled'
                 : text
             ).slice(0, 300),
             runId,

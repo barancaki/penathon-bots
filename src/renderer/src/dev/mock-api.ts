@@ -15,11 +15,15 @@ import { notificationsSchema, settingsPatchSchema, type Settings } from '../../.
 import { projectDraftSchema, projectSchema, type AccessLevel } from '../../../shared/projects';
 import {
   routineDraftSchema,
+  routineName,
+  routinePrompt,
+  reportProcessingKey,
   type Routine,
   type RoutineDraft,
   type RoutineRun,
   type WorkReport,
 } from '../../../shared/routines';
+import { translate } from '../../../shared/i18n';
 import type { TelegramStatus } from '../../../shared/telegram';
 import { telegramOptionsSchema } from '../../../shared/settings';
 import type { Room, RoomActivity, RoomMessage } from '../../../shared/rooms';
@@ -327,10 +331,9 @@ for (const bot of bots) {
     bot.id === 'chief'
       ? {
           id: 'vault-update',
-          name: 'Vault güncelleme',
+          name: translate('en', reportProcessingKey),
           schedule: { kind: 'daily', time: '22:00' },
-          prompt:
-            'Bekleyen raporları bilgi klasörünün kurallarına göre ilgili notlara yaz ve işaretle.',
+          prompt: translate('en', 'routines.reportPrompt'),
           model: 'haiku',
           system: true,
           enabled: false,
@@ -357,7 +360,7 @@ for (const bot of bots) {
       conversations.push({
         id: conversationId,
         botId: bot.id,
-        title: bot.routines[0].name,
+        title: routineName(bot.routines[0], bot.id),
         createdAt: iso((index + 1) * 86_400_000),
       });
       messages.push({
@@ -892,9 +895,12 @@ export const mockApi: Api = {
         )
       )
         throw new Error('errors.botBusy');
-      const run = await mockApi.chat.send(botId, routine.prompt);
+      const run = await mockApi.chat.send(
+        botId,
+        translate(settings.language, routinePrompt(routine, botId)),
+      );
       conversations.find((conversation) => conversation.id === run.conversationId)!.title =
-        routine.name;
+        routineName(routine, botId);
       const record: RoutineRun = {
         id: run.runId,
         botId,
@@ -943,10 +949,10 @@ export const mockApi: Api = {
         throw new Error('errors.botBusy');
       const run = await mockApi.chat.send(
         'chief',
-        'Vault güncelleme: yalnız ' + id + ' raporunu işle.',
+        translate(settings.language, 'routines.processOneReport') + id,
       );
       conversations.find((conversation) => conversation.id === run.conversationId)!.title =
-        'Vault güncelleme';
+        reportProcessingKey;
       runs.get(run.conversationId)!.reportId = id;
       return run;
     },

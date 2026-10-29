@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { translate } from './i18n';
 
 const slug = z.string().regex(/^[a-z0-9][a-z0-9_-]{0,63}$/);
 const hhmm = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
@@ -51,6 +52,33 @@ export const routineSchema = z
   })
   .strict();
 export type Routine = z.infer<typeof routineSchema>;
+
+export const reportProcessingKey = 'routines.reportProcessing';
+
+/** Localize only the built-in default; names edited in bot Markdown stay intact. */
+export function routineName(routine: Routine, botId: string): string {
+  return botId === 'chief' &&
+    routine.system &&
+    routine.id === 'vault-update' &&
+    [
+      'Vault güncelleme',
+      translate('en', reportProcessingKey),
+      translate('tr', reportProcessingKey),
+    ].includes(routine.name)
+    ? reportProcessingKey
+    : routine.name;
+}
+
+export function routinePrompt(routine: Routine, botId: string): string {
+  return botId === 'chief' &&
+    routine.system &&
+    routine.id === 'vault-update' &&
+    [translate('en', 'routines.reportPrompt'), translate('tr', 'routines.reportPrompt')].includes(
+      routine.prompt,
+    )
+    ? 'routines.reportPrompt'
+    : routine.prompt;
+}
 
 export const routineDraftSchema = routineSchema
   .omit({ id: true, system: true })

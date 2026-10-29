@@ -7,7 +7,15 @@ import { BotStore, chiefBot, parseBot } from '../src/main/bots/store';
 import { ChatService } from '../src/main/chat';
 import { Repository } from '../src/main/db';
 import { nextRunAt, Routines } from '../src/main/routines';
-import { routinePatchSchema, type RoutineDraft, type Schedule } from '../src/shared/routines';
+import {
+  routineName,
+  routinePrompt,
+  routinePatchSchema,
+  type RoutineDraft,
+  type Schedule,
+} from '../src/shared/routines';
+import { makeT } from '../src/renderer/src/ui/strings';
+import { translate } from '../src/shared/i18n';
 import type { EngineAdapter, RunInput } from '../src/main/engines/types';
 import { removeTemporary, temporaryDirectory } from './helpers';
 
@@ -211,7 +219,7 @@ it('skips busy bots and does not overlap running routines or replay missed start
     await scheduler.tick(local(29, 9));
     expect(db.routineRuns('chief', state.routine.id)[0]).toMatchObject({
       status: 'skipped',
-      summary: 'bot meşguldü',
+      summary: 'errors.botBusy',
     });
     await scheduler.tick(local(29, 9));
     expect(db.routineRuns('chief', state.routine.id)).toHaveLength(1);
@@ -341,4 +349,77 @@ it('seeds, protects, persists and toggles Vault update when the knowledge folder
   store = new BotStore(store.dir, chiefBot(dir, 'en'), () => knowledgeDir);
   await store.init();
   expect(parseBot(await readFile(file, 'utf8')).routines[0].id).toBe('vault-update');
+});
+
+it.each(['en', 'tr'] as const)(
+  'localizes fresh system routine names, prompts and run titles in %s',
+  async (language) => {
+    const t = makeT(language);
+    const seed = chiefBot(dir, language).routines[0];
+    expect(seed.name).toBe(language === 'en' ? 'Report processing' : 'Rapor işleme');
+    expect(t(routineName(seed, 'chief'))).toBe(seed.name);
+    expect(t(routinePrompt(seed, 'chief'))).toBe(seed.prompt);
+    vi.spyOn(chat, 'language').mockReturnValue(language);
+    const run = await chat.routines.runNow('chief', 'vault-update');
+    await expect.poll(() => chat.isBotActive('chief')).toBe(false);
+    expect(t(db.get(run.conversationId).conversation.title)).toBe(seed.name);
+    expect(inputs[0].prompt).toBe(seed.prompt);
+  },
+);
+
+it('displays saved legacy defaults in either language without rewriting names or user tasks', async () => {
+  await store.close();
+  const file = join(store.dir, 'chief.md');
+  const { instructions, ...metadata } = parseBot(await readFile(file, 'utf8'));
+  const legacy = {
+    ...metadata.routines[0],
+    name: 'Vault güncelleme',
+    prompt: translate('tr', 'routines.reportPrompt'),
+  };
+  await writeFile(file, matter.stringify(instructions, { ...metadata, routines: [legacy] }));
+  store = new BotStore(store.dir, chiefBot(dir, 'en'));
+  await store.init();
+  const saved = chat.routines.list('chief')[0].routine;
+  for (const language of ['en', 'tr'] as const) {
+    const t = makeT(language);
+    expect(t(routineName(saved, 'chief'))).toBe(
+      language === 'en' ? 'Report processing' : 'Rapor işleme',
+    );
+    expect(t(routinePrompt(saved, 'chief'))).toBe(translate(language, 'routines.reportPrompt'));
+  }
+  const run = await chat.routines.runNow('chief', saved.id);
+  await expect.poll(() => chat.isBotActive('chief')).toBe(false);
+  expect(makeT('en')(db.get(run.conversationId).conversation.title)).toBe('Report processing');
+  expect(inputs[0].prompt).toBe(translate('en', 'routines.reportPrompt'));
+  expect(parseBot(await readFile(file, 'utf8')).routines[0].name).toBe('Vault güncelleme');
+  const { system: _system, ...draft } = saved;
+  void _system;
+  await chat.routines.save('chief', { ...draft, enabled: true });
+  for (const routine of [
+    { ...saved, name: 'My report notes', prompt: 'My custom task' },
+    { ...saved, system: false },
+    { ...saved, id: 'my-routine' },
+  ]) {
+    expect(routineName(routine, 'chief')).toBe(routine.name);
+    expect(routinePrompt(routine, 'chief')).toBe(routine.prompt);
+  }
+  expect(routineName(saved, 'worker')).toBe(saved.name);
+});
+
+it('keeps a user-renamed system routine and its custom prompt across startup and runs', async () => {
+  await store.close();
+  const file = join(store.dir, 'chief.md');
+  const { instructions, ...metadata } = parseBot(await readFile(file, 'utf8'));
+  const custom = { ...metadata.routines[0], name: 'My report notes', prompt: 'My custom task' };
+  await writeFile(file, matter.stringify(instructions, { ...metadata, routines: [custom] }));
+  store = new BotStore(store.dir, chiefBot(dir, 'en'));
+  await store.init();
+  const saved = chat.routines.list('chief')[0].routine;
+  expect(saved.name).toBe(custom.name);
+  expect(makeT('en')(routineName(saved, 'chief'))).toBe(custom.name);
+  const run = await chat.routines.runNow('chief', saved.id);
+  await expect.poll(() => chat.isBotActive('chief')).toBe(false);
+  expect(db.get(run.conversationId).conversation.title).toBe(custom.name);
+  expect(inputs[0].prompt).toBe(custom.prompt);
+  expect(parseBot(await readFile(file, 'utf8')).routines[0]).toMatchObject(custom);
 });

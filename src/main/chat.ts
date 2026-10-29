@@ -10,9 +10,10 @@ import { redact } from './engines/common';
 import { Approvals } from './bots/approvals';
 import { BotTools, type Execution } from './bots/tools';
 import type { ProjectStore } from './projects';
-import { Routines, vaultRoutine } from './routines';
-import type { WorkReport } from '../shared/routines';
+import { Routines } from './routines';
+import { reportProcessingKey, type WorkReport } from '../shared/routines';
 import { Rooms } from './rooms';
+import { translate, type Language } from '../shared/i18n';
 
 export class ChatService extends EventEmitter {
   private closing = false;
@@ -36,6 +37,7 @@ export class ChatService extends EventEmitter {
     private secrets: () => string[],
     private publishEvent: (event: EventEnvelope) => void,
     private projects?: ProjectStore,
+    readonly language: () => Language = () => 'en',
   ) {
     super();
     this.routines = new Routines(bots, db, this);
@@ -178,7 +180,9 @@ export class ChatService extends EventEmitter {
           append({
             type: 'notice',
             level: 'warning',
-            message: `${options!.model} modeli ${bot.engine} motoruyla uyumlu değil; varsayılan model kullanılıyor.`,
+            message: translate(this.language(), 'notice.incompatibleRoutineModel')
+              .replace('{model}', options!.model!)
+              .replace('{engine}', bot.engine),
           });
         const tools = new BotTools(
           this.bots(),
@@ -359,13 +363,14 @@ export class ChatService extends EventEmitter {
     if (!this.bots().hasReportDestination()) throw new Error('Knowledge folder missing');
     const run = await this.send(
       'chief',
-      vaultRoutine.prompt +
-        '\n\nYalnız şu raporu işle; diğer raporlara dokunma: ' +
+      translate(this.language(), 'routines.reportPrompt') +
+        '\n\n' +
+        translate(this.language(), 'routines.processOneReport') +
         JSON.stringify(report),
       undefined,
       undefined,
       {
-        title: 'Vault güncelleme',
+        title: reportProcessingKey,
         model: this.bots().get('chief').engine === 'claude' ? 'haiku' : undefined,
         reportId: id,
       },

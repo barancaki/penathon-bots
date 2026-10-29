@@ -81,7 +81,7 @@ function hold(input: RunInput): Promise<void> {
 }
 async function idle(id = room.id) {
   await expect
-    .poll(() => chat.rooms.activity(id))
+    .poll(() => chat.rooms.activity(id), { timeout: 5000 })
     .toEqual({ roomId: id, active: undefined, queue: [] });
 }
 const replies = (id = room.id) =>
