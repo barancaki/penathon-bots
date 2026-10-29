@@ -5,9 +5,7 @@ Turn Claude Code and Codex into a team of persistent AI teammates. Open source, 
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 ![Platforms: Windows and macOS](https://img.shields.io/badge/platform-Windows%20%7C%20macOS-lightgrey.svg)
 
-<!-- Demo GIF will be added at docs/media/demo.gif:
-![Penathon Bots demo](docs/media/demo.gif)
--->
+![Penathon Bots demo: the Chief builds a team of three bots from one sentence](docs/media/demo.gif)
 
 ## Why
 
