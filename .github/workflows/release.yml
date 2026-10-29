@@ -1,0 +1,80 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing version tag to build (vX.Y.Z)
+        required: true
+        type: string
+
+env:
+  TAG: ${{ inputs.tag || github.ref_name }}
+  CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+
+jobs:
+  build:
+    name: Build (${{ matrix.target }})
+    permissions:
+      contents: read
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: win
+            extension: exe
+          - os: macos-latest
+            target: mac
+            extension: dmg
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refs/tags/${{ env.TAG }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Verify tag matches package version
+        run: node -e "const expected = 'v' + require('./package.json').version; if (process.env.TAG !== expected) throw new Error('Tag must be ' + expected + ', got ' + process.env.TAG);"
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+      - run: npx electron-builder --${{ matrix.target }} --publish never
+      - uses: actions/upload-artifact@v4
+        with:
+          name: installers-${{ matrix.target }}
+          path: release/*.${{ matrix.extension }}
+          if-no-files-found: error
+
+  release:
+    name: Draft release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: installers-*
+          path: artifacts
+          merge-multiple: true
+      - name: Create or update draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          files=(artifacts/*.exe artifacts/*.dmg)
+          if draft=$(gh release view "$TAG" --json isDraft --jq .isDraft); then
+            if [[ "$draft" != true ]]; then
+              echo "::error::Release $TAG already exists and is not a draft."
+              exit 1
+            fi
+            gh release upload "$TAG" --clobber "${files[@]}"
+          else
+            gh release create "$TAG" --draft --title "Penathon Bots $TAG" --generate-notes "${files[@]}"
+          fi
