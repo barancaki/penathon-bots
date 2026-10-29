@@ -1,6 +1,6 @@
 {
   "name": "penathon-bots",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "private": true,
   "type": "module",
   "description": "Persistent local AI teammates powered by Claude Code and Codex",
