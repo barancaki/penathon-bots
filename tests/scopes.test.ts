@@ -1,6 +1,6 @@
 import { afterEach, expect, it } from 'vitest';
 import { mkdir, symlink, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { join, relative } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import {
   inScope,
@@ -153,6 +153,74 @@ it('uses path boundaries and canonical paths, denying traversal and symlink esca
   ).toBe(false);
   expect(await allowClaudeTool(bot, 'mcp__unknown', {})).toBe(false);
   expect(await allowClaudeTool(bot, 'Read', { file_path: join(outside, 'secret') })).toBe(false);
+});
+
+it('checks native tools and MCP URIs against the same canonical roots through short-name aliases', async () => {
+  directory = await temporaryDirectory();
+  const home = join(directory, 'runneradmin');
+  const alias = join(directory, 'RUNNER~1');
+  const work = join(home, 'work');
+  const outside = join(home, 'work-extra');
+  await mkdir(work, { recursive: true });
+  await mkdir(outside);
+  const linkType = process.platform === 'win32' ? 'junction' : 'dir';
+  await symlink(home, alias, linkType);
+  await symlink(outside, join(work, 'escape'), linkType);
+  await writeFile(join(work, 'existing file.md'), 'hello');
+  for (const root of [work, join(alias, 'work')]) {
+    const bot = testBot(root, { connections: ['filesystem'] });
+    for (const spelling of [work, join(alias, 'work')]) {
+      for (const tail of ['existing file.md', 'missing/nested/new file.md']) {
+        const path = join(spelling, tail);
+        expect(await inScope(path, [root + '/'])).toBe(true);
+        expect(await inScope(relative(process.cwd(), path), [root])).toBe(true);
+        for (const name of ['Read', 'Write', 'Edit'])
+          expect(await allowClaudeTool(bot, name, { file_path: path })).toBe(true);
+        for (const name of ['read_file', 'write_file', 'delete_file'])
+          for (const input of [{ path }, { uri: pathToFileURL(path).href }])
+            expect(await allowClaudeTool(bot, 'mcp__filesystem__' + name, input)).toBe(true);
+      }
+      for (const path of [
+        join(outside, 'file.md'),
+        spelling + '/../work-extra/file.md',
+        join(spelling, 'escape', 'file.md'),
+      ]) {
+        expect(await inScope(path, [root])).toBe(false);
+        expect(await allowClaudeTool(bot, 'Write', { file_path: path })).toBe(false);
+        expect(
+          await allowClaudeTool(bot, 'mcp__filesystem__delete_file', {
+            uri: pathToFileURL(path).href,
+          }),
+        ).toBe(false);
+      }
+    }
+  }
+});
+
+it('denies unresolved symlinks and indirect MCP paths instead of treating them as new files', async () => {
+  directory = await temporaryDirectory();
+  const work = join(directory, 'work');
+  await mkdir(work);
+  const dangling = join(work, 'dangling');
+  await symlink(
+    join(directory, 'missing'),
+    dangling,
+    process.platform === 'win32' ? 'junction' : 'dir',
+  );
+  await expect(inScope(join(dangling, 'file.md'), [work])).rejects.toMatchObject({
+    code: 'ENOENT',
+  });
+  await expect(inScope(join(work, 'file.md'), [dangling])).rejects.toMatchObject({
+    code: 'ENOENT',
+  });
+  const bot = testBot(work, { connections: ['filesystem'] });
+  for (const path of [dangling, join(dangling, 'file.md'), '~', '~/file.md', '%TEMP%/file.md'])
+    expect(await allowClaudeTool(bot, 'mcp__filesystem__write_file', { path })).toBe(false);
+  expect(
+    await allowClaudeTool(bot, 'mcp__filesystem__write_file', {
+      uri: pathToFileURL(join(dangling, 'file.md')).href,
+    }),
+  ).toBe(false);
 });
 
 it('rejects canonical knowledge overlap in read scopes while preserving sibling prefixes', async () => {

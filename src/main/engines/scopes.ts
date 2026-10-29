@@ -1,4 +1,4 @@
-import { realpath, stat } from 'node:fs/promises';
+import { lstat, realpath, stat } from 'node:fs/promises';
 import { dirname, isAbsolute, relative, resolve, sep, win32 } from 'node:path';
 import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -50,21 +50,25 @@ export function effectiveAccess(bot: Bot, projects: Project[] = []) {
 export type EffectiveAccess = ReturnType<typeof effectiveAccess>;
 
 async function canonical(path: string): Promise<string> {
+  path = resolve(path);
   try {
+    // fs/promises.realpath uses the native implementation on every platform.
     return await realpath(path);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT' || dirname(path) === path) throw error;
+    // A dangling symlink cannot be scoped as if it were a new file.
+    const entry = await lstat(path).catch((error: NodeJS.ErrnoException) => {
+      if (error.code !== 'ENOENT') throw error;
+      return undefined;
+    });
+    if (entry) throw error;
     return resolve(await canonical(dirname(path)), relative(dirname(path), path));
   }
 }
 export async function inScope(path: string, roots: string[]): Promise<boolean> {
-  let target = await canonical(path);
-  if (process.platform === 'win32') target = target.toLowerCase();
+  const target = await canonical(path);
   for (const root of roots) {
-    let base = await canonical(root);
-    if (process.platform === 'win32') base = base.toLowerCase();
-    const rel = relative(base, target);
-    if (!isAbsolute(rel) && rel !== '..' && !rel.startsWith('..' + sep)) return true;
+    if (lexicallyInside(target, await canonical(root))) return true;
   }
   return false;
 }
@@ -181,8 +185,12 @@ export function toolPath(workdir: string, value: string): string {
   return resolve(workdir, /^file:\/\//i.test(value) ? fileURLToPath(value) : value);
 }
 function lexicallyInside(path: string, root: string) {
+  if (process.platform === 'win32') {
+    path = path.toLowerCase();
+    root = root.toLowerCase();
+  }
   const rel = relative(resolve(root), resolve(path));
-  return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel));
+  return !isAbsolute(rel) && rel !== '..' && !rel.startsWith('..' + sep);
 }
 async function referencesKnowledge(
   input: unknown,
@@ -270,7 +278,8 @@ export function mcpPaths(input: unknown, workdir: string, pathField = false): st
       }
     }
     const checked = process.platform === 'win32' ? path.replace(/^\\\\\?\\/, '') : path;
-    if (!checked || /[$%\x60*?[\]{}~!\0]/.test(checked)) throw new Error('Indirect tool path');
+    // Embedded tildes are literal (including Windows 8.3 names); leading ~ is indirect.
+    if (!checked || /^~|[$%\x60*?[\]{}!\0]/.test(checked)) throw new Error('Indirect tool path');
     return [toolPath(workdir, path)];
   }
   if (pathField && (input === null || typeof input !== 'object'))

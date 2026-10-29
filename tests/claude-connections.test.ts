@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -412,8 +412,11 @@ it.each([false, true])(
     mockStream(vi.fn().mockResolvedValue([status('filesystem')]));
     const run = input(['filesystem']);
     // Keep denied paths out of scope even when TMPDIR is inside the repository.
-    const workdir = join(configDir, 'work');
-    await mkdir(workdir);
+    const realHome = join(configDir, 'runneradmin');
+    const alias = join(configDir, 'RUNNER~1');
+    await mkdir(join(realHome, 'work'), { recursive: true });
+    await symlink(realHome, alias, process.platform === 'win32' ? 'junction' : 'dir');
+    const workdir = join(alias, 'work');
     run.bot = testBot(workdir, { connections: ['filesystem'] });
     if (chief) run.bot = { ...run.bot, id: 'chief', system: true };
     const vault = join(configDir, 'vault');
@@ -429,6 +432,7 @@ it.each([false, true])(
       ['batch_execute', { operations: [{ action: 'writeFile', url: outside }] }],
       ['send_message', { attachments: [{ path: outside }] }],
       ['read_file', { nested: { url: outside } }],
+      ['delete_file', { uri: pathToFileURL(join(workdir, '..', 'outside', 'x')).href }],
       [
         'delete_file',
         {
@@ -473,14 +477,34 @@ it.each([false, true])(
         ),
       ).toMatchObject({ behavior: 'deny' });
     expect(run.requestApproval).not.toHaveBeenCalled();
-    expect(
-      await options.canUseTool!(
-        'mcp__filesystem__delete_file',
-        { uri: pathToFileURL(join(workdir, 'allowed file.md')).href },
-        { signal: run.signal, toolUseID: 'allowed', requestId: 'r' },
-      ),
-    ).toMatchObject({ behavior: 'allow' });
-    expect(run.requestApproval).toHaveBeenCalledOnce();
+    for (const root of [workdir, join(realHome, 'work')]) {
+      const name = 'mcp__filesystem__delete_file';
+      const args = { uri: pathToFileURL(join(root, 'allowed file.md')).href };
+      expect(
+        await options.canUseTool!(name, args, {
+          signal: run.signal,
+          toolUseID: root,
+          requestId: 'r',
+        }),
+      ).toMatchObject({ behavior: 'allow' });
+      const hook = options.hooks!.PreToolUse![0].hooks[0];
+      expect(
+        await hook(
+          {
+            hook_event_name: 'PreToolUse',
+            session_id: 's',
+            transcript_path: '',
+            cwd: workdir,
+            tool_name: name,
+            tool_input: args,
+            tool_use_id: root,
+          },
+          root,
+          { signal: run.signal },
+        ),
+      ).toMatchObject({ hookSpecificOutput: { permissionDecision: 'allow' } });
+    }
+    expect(run.requestApproval).toHaveBeenCalledTimes(2);
   },
 );
 
