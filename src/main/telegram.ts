@@ -1,10 +1,11 @@
+import { translate } from '../shared/i18n';
 import { randomBytes, randomInt } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
 import { z } from 'zod';
 import type { TelegramStatus } from '../shared/telegram';
 import { telegramOptionsSchema, type TelegramOptions } from '../shared/settings';
 import type { EventEnvelope } from '../shared/events';
-import type { RoutineRun } from '../shared/routines';
+import { routineName, type RoutineRun } from '../shared/routines';
 import type { SettingsStore } from './settings';
 import type { BotStore } from './bots/store';
 import type { ChatService } from './chat';
@@ -420,6 +421,9 @@ export class TelegramBridge {
     this.effects.add(effect);
     void effect.finally(() => this.effects.delete(effect));
   }
+  private text(key: string): string {
+    return translate(this.settings.get().language, key);
+  }
   private async receive(update: Update, controller: AbortController): Promise<void> {
     if (controller.signal.aborted) return;
     const options = this.settings.get().telegram;
@@ -458,18 +462,18 @@ export class TelegramBridge {
       });
       this.clearPairing();
       this.publish();
-      this.background(this.send('Eşleşme tamamlandı.', controller, message.chat.id));
+      this.background(this.send(this.text('telegram.pairedReply'), controller, message.chat.id));
       return;
     }
     if (message.chat.id !== options.pairedChatId) return;
     this.accepted = this.accepted.filter((at) => at > Date.now() - 60_000);
     if (this.accepted.length >= 20) {
-      this.background(this.send('Yavaşla; dakikada en fazla 20 mesaj.', controller));
+      this.background(this.send(this.text('telegram.rateLimitReply'), controller));
       return;
     }
     this.accepted.push(Date.now());
     if (!message.text?.trim()) {
-      this.background(this.send('Dosya ve fotoğraflar henüz desteklenmiyor.', controller));
+      this.background(this.send(this.text('telegram.unsupportedReply'), controller));
       return;
     }
     const text = message.text.trim();
@@ -477,11 +481,11 @@ export class TelegramBridge {
     try {
       botId = this.route(text).botId;
     } catch {
-      this.background(this.send('Bot bulunamadı. /bot Ad mesaj biçimini kullan.', controller));
+      this.background(this.send(this.text('telegram.botMissingReply'), controller));
       return;
     }
     if (this.queued || this.chat.isBotActive(botId))
-      this.background(this.send('Bot meşgul, sıraya aldım.', controller));
+      this.background(this.send(this.text('telegram.queuedReply'), controller));
     this.queued++;
     this.queue = this.queue
       .then(async () => {
@@ -490,7 +494,7 @@ export class TelegramBridge {
           await this.routeMessage(text, controller, message.chat.id);
         } catch {
           await this.send(
-            'İşlem tamamlanamadı. Uygulamayı kontrol et.',
+            this.text('telegram.operationFailedReply'),
             controller,
             message.chat.id,
           ).catch(() => undefined);
@@ -536,7 +540,7 @@ export class TelegramBridge {
   ): Promise<void> {
     if (/^\/(?:yeni|new)$/.test(text)) {
       await this.settings.setTelegram({ conversationId: undefined });
-      await this.send('Yeni sohbet hazır.', controller, chatId);
+      await this.send(this.text('telegram.newChatReply'), controller, chatId);
       return;
     }
     const { botId, prompt } = this.route(text);
@@ -587,7 +591,7 @@ export class TelegramBridge {
           .map((event) => event.text)
           .join('');
       await this.send(
-        failed ? 'Koşu tamamlanamadı. Uygulamayı kontrol et.' : answer || 'Tamamlandı.',
+        failed ? this.text('telegram.runFailedReply') : answer || this.text('telegram.doneReply'),
         controller,
         chatId,
       );
@@ -637,8 +641,8 @@ export class TelegramBridge {
             reply_markup: {
               inline_keyboard: [
                 [
-                  { text: 'Onayla', callback_data: `a:${key}` },
-                  { text: 'Vazgeç', callback_data: `r:${key}` },
+                  { text: this.text('telegram.approve'), callback_data: `a:${key}` },
+                  { text: this.text('telegram.reject'), callback_data: `r:${key}` },
                 ],
               ],
             },
@@ -659,8 +663,8 @@ export class TelegramBridge {
               return;
             const result =
               event.decision === 'approved' || event.decision === 'edited'
-                ? 'Onaylandı'
-                : 'Vazgeçildi';
+                ? this.text('telegram.approved')
+                : this.text('telegram.rejected');
             await this.call(
               'editMessageText',
               {
@@ -682,7 +686,7 @@ export class TelegramBridge {
   ): Promise<void> {
     const match = /^([ar]):([a-f0-9]{16})$/.exec(query.data ?? '');
     const approval = match ? this.approvals.get(match[2]) : undefined;
-    let text = 'Bu onay artık geçerli değil.';
+    let text = this.text('telegram.approvalExpiredReply');
     if (
       approval &&
       approval.chatId === query.message?.chat.id &&
@@ -693,9 +697,9 @@ export class TelegramBridge {
           approval.approvalId,
           match![1] === 'a' ? 'approved' : 'rejected',
         );
-        text = 'Yanıt kaydedildi.';
+        text = this.text('telegram.responseSavedReply');
       } catch {
-        text = 'Onay işlenemedi; uygulamayı kontrol et.';
+        text = this.text('telegram.approvalFailedReply');
       }
     }
     await this.call('answerCallbackQuery', { callback_query_id: query.id, text }, controller);
@@ -707,8 +711,8 @@ export class TelegramBridge {
     const bot = this.bots()
       .list()
       .find((bot) => bot.id === run.botId);
-    const name =
-      bot?.routines.find((routine) => routine.id === run.routineId)?.name ?? run.routineId;
+    const routine = bot?.routines.find((routine) => routine.id === run.routineId);
+    const name = routine && bot ? this.text(routineName(routine, bot.id)) : run.routineId;
     let summary = run.summary ?? '';
     if (run.conversationId) {
       const events = this.db
@@ -726,7 +730,7 @@ export class TelegramBridge {
               summary));
     }
 
-    await this.send(`⏰ ${name}: ${summary.slice(0, 600)}`, controller);
+    await this.send(`⏰ ${name}: ${this.text(summary).slice(0, 600)}`, controller);
   }
   async close(): Promise<void> {
     this.closing = true;

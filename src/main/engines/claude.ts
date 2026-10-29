@@ -1,3 +1,4 @@
+import { translate } from '../../shared/i18n';
 import type { McpServerStatus, Options, SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 import { z } from 'zod';
 import { stat } from 'node:fs/promises';
@@ -147,7 +148,7 @@ export class ClaudeEngine implements EngineAdapter {
           mcpServers: {
             ...userServers,
             team: createPenathonServer(sdk, async () => {
-              throw new Error('No active run');
+              throw new Error(translate(this.context.language?.() ?? 'en', 'errors.runMissing'));
             }),
           },
         },
@@ -171,7 +172,7 @@ export class ClaudeEngine implements EngineAdapter {
   async models() {
     // shortcut: offline aliases; use SDK discovery when a standalone catalog API exists.
     return [
-      { id: 'default', label: 'Varsayılan' },
+      { id: 'default', label: translate(this.context.language?.() ?? 'en', 'engine.defaultModel') },
       ...['sonnet', 'opus', 'haiku'].map((id) => ({ id, label: id })),
     ];
   }
@@ -182,6 +183,7 @@ export class ClaudeEngine implements EngineAdapter {
     this.controllers.get(id)?.abort();
   }
   async *run(input: RunInput): AsyncIterable<BotEvent> {
+    const t = (key: string) => translate(this.context.language?.() ?? 'en', key);
     const controller = new AbortController();
     const abort = () => controller.abort();
     input.signal.addEventListener('abort', abort, { once: true });
@@ -218,7 +220,7 @@ export class ClaudeEngine implements EngineAdapter {
         sdk,
         input.callTool ??
           (async () => {
-            throw new Error('No active bot management session');
+            throw new Error(t('errors.botSessionMissing'));
           }),
         isChief(bot),
       );
@@ -233,7 +235,7 @@ export class ClaudeEngine implements EngineAdapter {
           name === 'Bash' && typeof args.command === 'string'
             ? deletionCommand(args.command, bot.workdir)
             : undefined;
-        if (deletion?.uncertain || (deletion && !deletion.paths.length)) return indirectDeletion;
+        if (deletion?.uncertain || (deletion && !deletion.paths.length)) return t(indirectDeletion);
         let currentAccess = access;
         const permitted = async () => {
           if (controller.signal.aborted) return false;
@@ -264,7 +266,7 @@ export class ClaudeEngine implements EngineAdapter {
             return false;
           }
         };
-        if (!(await permitted())) return 'Outside bot scope or connection permission';
+        if (!(await permitted())) return t('errors.toolScopeDenied');
         const match = /^mcp__(.+?)__(.+)$/.exec(name);
         const tool = server
           ? name.slice(('mcp__' + normalizeServer(server.name) + '__').length)
@@ -284,8 +286,8 @@ export class ClaudeEngine implements EngineAdapter {
               }) ?? Promise.resolve(false);
             decisions.set(key, decision);
           }
-          if (!(await decision)) return 'Connector action was not approved';
-          if (!(await permitted())) return 'Outside bot scope or connection permission';
+          if (!(await decision)) return t('errors.connectorDenied');
+          if (!(await permitted())) return t('errors.toolScopeDenied');
           return;
         }
         if (name === 'Write' && typeof args.content === 'string' && !args.content.trim()) {
@@ -303,8 +305,8 @@ export class ClaudeEngine implements EngineAdapter {
           };
         }
         if (!deletion) return;
-        if (deletion.uncertain || !deletion.paths.length) return indirectDeletion;
-        if (!(await permitted())) return 'Outside bot scope or connection permission';
+        if (deletion.uncertain || !deletion.paths.length) return t(indirectDeletion);
+        if (!(await permitted())) return t('errors.toolScopeDenied');
         if (
           (
             await Promise.all(deletion.paths.map((path) => inScope(path, currentAccess.fullRoots)))
@@ -319,14 +321,14 @@ export class ClaudeEngine implements EngineAdapter {
           decision =
             input.requestApproval?.({
               kind: 'file.delete',
-              title: 'Dosya silme onayı',
+              title: t('approval.deleteFiles'),
               details: command,
               data: { command, paths: deletion.paths },
             }) ?? Promise.resolve(false);
           decisions.set(key, decision);
         }
-        if (!(await decision)) return 'kullanıcı silmeyi onaylamadı';
-        if (!(await permitted())) return 'Outside bot scope or connection permission';
+        if (!(await decision)) return t('errors.deletionDenied');
+        if (!(await permitted())) return t('errors.toolScopeDenied');
       };
       const rules = await projectInstructions(bot, projects, knowledgeDir, secrets);
       const readOnlyRoots: string[] = [];
@@ -395,7 +397,7 @@ export class ClaudeEngine implements EngineAdapter {
                     hookSpecificOutput: {
                       hookEventName: 'PreToolUse',
                       permissionDecision: reason ? 'deny' : 'allow',
-                      permissionDecisionReason: reason ?? 'Within bot scope',
+                      permissionDecisionReason: reason ?? t('permission.withinScope'),
                     },
                   };
                 },
@@ -485,10 +487,9 @@ export class ClaudeEngine implements EngineAdapter {
           for (const block of message.message.content)
             if (block.type === 'tool_use' && !tools.has(block.id)) {
               tools.add(block.id);
-              const file =
-                toolKind(block.name) === 'file_write'
-                  ? (block.input as { file_path?: unknown } | null)?.file_path
-                  : undefined;
+              const file = ['file_read', 'file_write'].includes(toolKind(block.name))
+                ? (block.input as { file_path?: unknown } | null)?.file_path
+                : undefined;
               const command =
                 toolKind(block.name) === 'command'
                   ? (block.input as { command?: unknown } | null)?.command
@@ -531,6 +532,7 @@ export class ClaudeEngine implements EngineAdapter {
             yield engineError(
               'claude',
               message.subtype === 'success' ? message.result : message.errors.join('\n'),
+              this.context.language?.() ?? 'en',
             );
           } else {
             yield { type: 'status', status: 'done' };
@@ -553,7 +555,11 @@ export class ClaudeEngine implements EngineAdapter {
     } catch (error) {
       if (!finished && !controller.signal.aborted) {
         yield { type: 'status', status: 'error' };
-        yield engineError('claude', error instanceof Error ? error.message : 'errors.engine');
+        yield engineError(
+          'claude',
+          error instanceof Error ? error.message : 'errors.engine',
+          this.context.language?.() ?? 'en',
+        );
         finished = true;
       }
     } finally {

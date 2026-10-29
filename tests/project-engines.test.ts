@@ -1,5 +1,6 @@
+import { translate } from '../src/shared/i18n';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { mkdir, rename, symlink, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rename, symlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { query, type SDKMessage } from '@anthropic-ai/claude-agent-sdk';
 import { ClaudeEngine } from '../src/main/engines/claude';
@@ -12,6 +13,7 @@ import type { BotEvent } from '../src/shared/events';
 import type { Project } from '../src/shared/projects';
 import type { EngineContext, RunInput } from '../src/main/engines/types';
 import { collect, removeTemporary, temporaryDirectory, testBot } from './helpers';
+import { allSteps, touchedFiles } from '../src/renderer/src/ui/state';
 
 vi.mock('@anthropic-ai/claude-agent-sdk', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@anthropic-ai/claude-agent-sdk')>()),
@@ -81,6 +83,94 @@ async function options() {
   await collect(new ClaudeEngine(context).run(input));
   return vi.mocked(query).mock.calls[0][0].options!;
 }
+it.each(['en', 'tr'] as const)(
+  'localizes denied empty Writes in %s and never marks the file edited',
+  async (language) => {
+    context.language = () => language;
+    const file = join(work, 'keep.md');
+    await writeFile(file, 'Keep this text');
+    const requestApproval = vi.fn(async () => false);
+    input.requestApproval = requestApproval;
+    const args = { file_path: file, content: '' };
+    vi.mocked(query).mockImplementation(
+      ({ options }) =>
+        (async function* () {
+          yield {
+            type: 'assistant',
+            message: {
+              id: 'write-message',
+              content: [{ type: 'tool_use', id: 'denied-write', name: 'Write', input: args }],
+            },
+          } as SDKMessage;
+          const permission = await options!.canUseTool!('Write', args, {
+            toolUseID: 'denied-write',
+          } as never);
+          expect(permission).toMatchObject({
+            behavior: 'deny',
+            message: translate(language, 'errors.deletionDenied'),
+          });
+          const hook = options!.hooks!.PreToolUse![0].hooks[0];
+          const result = await hook(
+            {
+              hook_event_name: 'PreToolUse',
+              tool_name: 'Write',
+              tool_input: args,
+              tool_use_id: 'denied-write',
+            } as never,
+            undefined,
+            { signal: input.signal },
+          );
+          expect(result).toMatchObject({
+            hookSpecificOutput: {
+              permissionDecision: 'deny',
+              permissionDecisionReason: translate(language, 'errors.deletionDenied'),
+            },
+          });
+          yield {
+            type: 'user',
+            message: {
+              content: [
+                {
+                  type: 'tool_result',
+                  tool_use_id: 'denied-write',
+                  is_error: true,
+                  content: `PreToolUse Write hook error: ${translate(language, 'errors.deletionDenied')}`,
+                },
+              ],
+            },
+          } as SDKMessage;
+          yield {
+            type: 'result',
+            subtype: 'success',
+            is_error: false,
+            session_id: 'test',
+            duration_ms: 1,
+            usage: { input_tokens: 1, output_tokens: 1 },
+          } as SDKMessage;
+        })() as ReturnType<typeof query>,
+    );
+    const events = await collect(new ClaudeEngine(context).run(input));
+    expect(requestApproval).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({
+        title: translate(language, 'approval.deleteFiles'),
+      }),
+    );
+    expect(
+      touchedFiles(
+        allSteps(
+          events.map((event, sequence) => ({
+            event,
+            sequence,
+            runId: 'run',
+            conversationId: 'chat',
+            createdAt: '',
+          })),
+        ),
+      ),
+    ).toEqual([]);
+    expect(await readFile(file, 'utf8')).toBe('Keep this text');
+  },
+);
 it.each([
   'rm -rf old',
   'rmdir old',
@@ -286,7 +376,7 @@ it.each(['approved', 'rejected', 'expired'] as const)(
       hookSpecificOutput: { permissionDecision: decision === 'approved' ? 'allow' : 'deny' },
     });
     if (decision !== 'approved')
-      expect(JSON.stringify(await pending)).toContain('kullanıcı silmeyi onaylamadı');
+      expect(JSON.stringify(await pending)).toContain('The user did not approve deletion.');
     expect(events.at(-1)).toMatchObject({ type: 'approval.resolved', decision });
     if (decision === 'approved') {
       expect(
@@ -461,7 +551,7 @@ it.each([
       { command },
       { signal: input.signal, toolUseID: 'indirect', requestId: 'r' },
     ),
-  ).toMatchObject({ behavior: 'deny', message: indirectDeletion });
+  ).toMatchObject({ behavior: 'deny', message: translate('en', indirectDeletion) });
   const hook = sdk.hooks!.PreToolUse![0].hooks[0];
   expect(
     await hook(
@@ -478,7 +568,10 @@ it.each([
       { signal: input.signal },
     ),
   ).toMatchObject({
-    hookSpecificOutput: { permissionDecision: 'deny', permissionDecisionReason: indirectDeletion },
+    hookSpecificOutput: {
+      permissionDecision: 'deny',
+      permissionDecisionReason: translate('en', indirectDeletion),
+    },
   });
   expect(input.requestApproval).not.toHaveBeenCalled();
 });
@@ -577,7 +670,7 @@ it.each(['', ' \n\t '])(
         { file_path: file, content },
         { signal: input.signal, toolUseID: 'blank', requestId: 'r' },
       ),
-    ).toMatchObject({ behavior: 'deny', message: 'kullanıcı silmeyi onaylamadı' });
+    ).toMatchObject({ behavior: 'deny', message: 'The user did not approve deletion.' });
     expect(input.requestApproval).toHaveBeenCalledWith(
       expect.objectContaining({
         kind: 'file.delete',
@@ -620,8 +713,8 @@ it.each(['delete_file', 'remove_file', 'rm', 'rmdir', 'unlink', 'trash_file'])(
     expect(await call([join(work, 'old')])).toMatchObject({
       behavior: 'deny',
       message: externalAction
-        ? 'Connector action was not approved'
-        : 'kullanıcı silmeyi onaylamadı',
+        ? 'The connector action was not approved.'
+        : 'The user did not approve deletion.',
     });
     expect(input.requestApproval).toHaveBeenCalledWith(
       externalAction

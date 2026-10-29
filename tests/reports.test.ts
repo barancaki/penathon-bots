@@ -258,7 +258,9 @@ it.each(['knowledge', 'write', 'full'] as const)(
       open: [],
       source: 'bot',
     });
-    await expect(chat.processReportNow(first.id)).rejects.toThrow('Knowledge');
+    await expect(chat.processReportNow(first.id)).rejects.toThrow(
+      'errors.reportDestinationMissing',
+    );
     const notes = join(dir, 'notes');
     await mkdir(notes);
     const into = join(notes, 'today.md');
@@ -293,7 +295,7 @@ it.each(['knowledge', 'write', 'full'] as const)(
     expect(await readFile(into, 'utf8')).toBe(first.summary);
     expect(db.reports({ pending: true }).map((report) => report.id)).toEqual([other.id]);
     expect(db.reports({ pending: false, botId: 'worker', limit: 1 })[0].id).toBe(first.id);
-    await expect(chat.processReportNow(first.id)).rejects.toThrow('already processed');
+    await expect(chat.processReportNow(first.id)).rejects.toThrow('errors.reportProcessed');
   },
 );
 it.each(['ungranted', 'read', 'removed'] as const)(
@@ -312,7 +314,9 @@ it.each(['ungranted', 'read', 'removed'] as const)(
       open: [],
       source: 'bot',
     });
-    await expect(chat.processReportNow(report.id)).rejects.toThrow('Knowledge');
+    await expect(chat.processReportNow(report.id)).rejects.toThrow(
+      'errors.reportDestinationMissing',
+    );
     expect(inputs).toEqual([]);
     expect(db.report(report.id).processedAt).toBeUndefined();
   },

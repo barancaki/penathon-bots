@@ -111,7 +111,7 @@ it('enforces sandbox ordering including read-only and full-access parents', asyn
   const bot = testBot(dir);
   await expect(
     assertCeiling({ ...bot, sandbox: 'workspace-write' }, { ...bot, sandbox: 'read-only' }),
-  ).rejects.toThrow('Sandbox');
+  ).rejects.toThrow('errors.sandboxCeiling');
   await expect(
     assertCeiling(
       { ...bot, sandbox: 'danger-full-access' },
@@ -342,7 +342,7 @@ it.each(['read-only', 'workspace-write', 'danger-full-access'] as const)(
       expect((await store.create({ ...draft, sandbox })).sandbox).toBe('danger-full-access');
     else
       await expect(store.create({ ...draft, sandbox: 'danger-full-access' })).rejects.toThrow(
-        'Sandbox',
+        'errors.sandboxCeiling',
       );
   },
 );
@@ -359,19 +359,25 @@ it('defaults network off, migrates Chief on and preserves an explicit Chief opt-
 it('enforces network ceilings on create/update, including Chief and parentless bots', async () => {
   const parent = await store.create(draft);
   const child = await store.create({ ...draft, parent: parent.id });
-  await expect(store.create({ ...draft, network: true }, parent.id)).rejects.toThrow('Ağ');
-  await expect(store.update(child.id, { network: true })).rejects.toThrow('Ağ');
+  await expect(store.create({ ...draft, network: true }, parent.id)).rejects.toThrow(
+    'errors.networkCeiling',
+  );
+  await expect(store.update(child.id, { network: true })).rejects.toThrow('errors.networkCeiling');
   await store.update(parent.id, { network: true });
   await store.update(child.id, { network: true }, parent.id);
-  await expect(store.update(parent.id, { network: false })).rejects.toThrow('Ağ');
-  await expect(store.update('chief', { network: false })).rejects.toThrow('Ağ');
+  await expect(store.update(parent.id, { network: false })).rejects.toThrow(
+    'errors.networkCeiling',
+  );
+  await expect(store.update('chief', { network: false })).rejects.toThrow('errors.networkCeiling');
   await store.update(child.id, { network: false });
   await store.update(parent.id, { network: false });
   await store.update('chief', { network: false });
-  await expect(store.create({ ...draft, network: true })).rejects.toThrow('Ağ');
-  await expect(store.update(parent.id, { network: true }, 'chief')).rejects.toThrow('Ağ');
+  await expect(store.create({ ...draft, network: true })).rejects.toThrow('errors.networkCeiling');
+  await expect(store.update(parent.id, { network: true }, 'chief')).rejects.toThrow(
+    'errors.networkCeiling',
+  );
   await expect(assertCeiling(testBot(dir, { network: true }), store.get('chief'))).rejects.toThrow(
-    'Ağ',
+    'errors.networkCeiling',
   );
 });
 

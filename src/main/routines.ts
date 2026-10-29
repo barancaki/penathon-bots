@@ -122,7 +122,7 @@ export class Routines extends EventEmitter {
     const routine = this.bots()
       .get(botId)
       .routines.find((routine) => routine.id === routineId);
-    if (!routine) throw new Error('Routine missing');
+    if (!routine) throw new Error('errors.routineMissing');
     const key = botId + '/' + routineId;
     if (this.launching.has(key) || this.chat.isBotActive(botId)) throw new Error('errors.botBusy');
     this.launching.add(key);

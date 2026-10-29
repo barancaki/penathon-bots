@@ -71,6 +71,7 @@ export class Desktop {
     this.batch = new NotificationBatcher(
       (event) => this.decide(event),
       (notice) => this.notify(notice),
+      () => this.services.settings().language,
     );
     this.tray = new Tray(nativeImage.createFromPath(this.icon).resize({ width: 16, height: 16 }));
     this.tray.on('click', () => this.show());
@@ -97,7 +98,7 @@ export class Desktop {
           if (this.services.settings().notifications.enabled)
             this.notify({
               title: 'Penathon Bots',
-              body: 'Penathon Bots arka planda çalışıyor; tepsiden açabilirsin.',
+              body: translate(this.services.settings().language, 'desktop.background'),
               target: {},
             });
         }
@@ -138,27 +139,29 @@ export class Desktop {
   updateActivity(activity: AppActivity): void {
     if (this.quitting) return;
     this.activity = activity;
+    const t = (key: string, count?: number) =>
+      translate(this.services.settings().language, key, count === undefined ? {} : { count });
     const count = activity.running.length;
     const approvals = activity.pendingApprovals;
     const window = this.services.window();
     if (window && !window.isDestroyed()) {
       window.setTitle(
         'Penathon Bots' +
-          (count ? ` — ${count} çalışıyor` : '') +
-          (approvals ? ` · ${approvals} onay bekliyor` : ''),
+          (count ? ` — ${t('desktop.running', count)}` : '') +
+          (approvals ? ` · ${t('desktop.approvals', approvals)}` : ''),
       );
       if (process.platform === 'win32') window.setProgressBar(count ? 2 : -1);
     }
     this.services.emit(channels.appOnActivity, activity);
     this.tray.setToolTip(
       'Penathon Bots — ' +
-        (count ? `${count} bot çalışıyor` : 'boşta') +
-        (approvals ? ` / ${approvals} onay bekliyor` : ''),
+        (count ? t('desktop.botsRunning', count) : t('desktop.idle')) +
+        (approvals ? ` / ${t('desktop.approvals', approvals)}` : ''),
     );
     const enabled = this.services.settings().notifications.enabled;
     this.tray.setContextMenu(
       Menu.buildFromTemplate([
-        { label: 'Aç', click: () => this.show() },
+        { label: t('desktop.open'), click: () => this.show() },
         { type: 'separator' },
         ...activity.running.map((run) => ({
           label: run.name,
@@ -166,14 +169,14 @@ export class Desktop {
         })),
         ...(count ? [{ type: 'separator' as const }] : []),
         {
-          label: enabled ? 'Bildirimleri duraklat' : 'Bildirimleri aç',
+          label: enabled ? t('desktop.pauseNotifications') : t('desktop.enableNotifications'),
           click: () => {
             void this.services.setSettings({ notifications: { enabled: !enabled } }).catch(() => {
               console.warn('Notification settings could not be saved');
             });
           },
         },
-        { label: 'Çıkış', click: () => app.quit() },
+        { label: t('desktop.quit'), click: () => app.quit() },
       ]),
     );
   }

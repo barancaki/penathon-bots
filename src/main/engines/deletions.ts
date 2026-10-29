@@ -1,7 +1,6 @@
 import { isAbsolute, resolve, sep, win32 } from 'node:path';
 
-export const indirectDeletion =
-  'Silme komutunda hedef yolları açıkça yaz (dolaylı hedef desteklenmiyor).';
+export const indirectDeletion = 'errors.indirectDeletion';
 
 type Token = { value: string; operator?: boolean };
 export type ShellCommand = { args: string[]; redirects: Token[]; indirect: boolean };

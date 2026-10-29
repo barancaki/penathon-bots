@@ -70,7 +70,7 @@ export class Rooms extends EventEmitter {
     return room;
   }
   create(input: unknown): Room {
-    if (this.closing) throw new Error('App closing');
+    if (this.closing) throw new Error('errors.appClosing');
     const draft = roomDraftSchema.parse(input);
     const room = this.db.saveRoom(
       this.validate({
@@ -159,7 +159,7 @@ export class Rooms extends EventEmitter {
     this.activityChanged(room.id);
   }
   async send(id: string, input: string): Promise<void> {
-    if (this.closing) throw new Error('App closing');
+    if (this.closing) throw new Error('errors.appClosing');
     const text = redact(roomTextSchema.parse(input), await this.secrets());
     const pending = this.pending.get(id);
     if (pending?.controller.signal.aborted) await pending.task;
@@ -178,13 +178,13 @@ export class Rooms extends EventEmitter {
     const text = redact(roomTextSchema.parse(input), await this.secrets());
     const room = this.db.room(id);
     if (this.closing || this.changing.has(id) || execution.signal.aborted)
-      throw new Error('Run cancelled');
-    if (!room.members.includes(botId)) throw new Error('Room membership required');
+      throw new Error('errors.runCancelled');
+    if (!room.members.includes(botId)) throw new Error('errors.roomMembership');
     execution.room ??= { roomId: id, depth: 0, chain: { responses: 0 } };
     const { chain, depth } = execution.room;
-    if (chain.responses >= 6 || depth > 4) throw new Error('Room reply limit reached');
+    if (chain.responses >= 6 || depth > 4) throw new Error('errors.roomReplyLimit');
     const run = this.db.runInfo(runId);
-    if (run.botId !== botId || run.status !== 'running') throw new Error('Run cancelled');
+    if (run.botId !== botId || run.status !== 'running') throw new Error('errors.runCancelled');
     chain.responses++;
     const message = this.message({
       roomId: id,

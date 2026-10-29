@@ -10,6 +10,7 @@ import {
   lastStatus,
   mergeEvents,
   sendResultUpdates,
+  touchedFiles,
 } from '../src/renderer/src/ui/state';
 import { makeT } from '../src/renderer/src/ui/strings';
 
@@ -36,6 +37,56 @@ const toolStart: BotEvent = {
   argsSummary: 'npm test',
 };
 const t = makeT('en');
+
+describe('Files write status', () => {
+  const write: BotEvent = {
+    type: 'tool.start',
+    toolId: 'write',
+    kind: 'file_write',
+    title: 'Write',
+    argsSummary: '{"file_path":"note.md","content":""}',
+    files: ['note.md'],
+  };
+  it.each(
+    (
+      [
+        [],
+        [{ type: 'tool.end', toolId: 'write', resultSummary: 'Permission denied', error: true }],
+        [{ type: 'run.done', durationMs: 1, cancelled: true }],
+        [{ type: 'run.error', code: 'engine', message: 'Failed' }],
+        [{ type: 'run.done', durationMs: 1 }],
+      ] satisfies BotEvent[][]
+    ).map((tail) => ({ tail })),
+  )('does not mark pending, denied or unfinished writes as edited: %j', ({ tail }) => {
+    const events = [write, ...tail].map((event, i) => envelope('run', i + 1, event));
+    expect(touchedFiles(allSteps(events))).toEqual([]);
+  });
+  it('marks every successfully written path, preserving the change after a later denied write', () => {
+    const events: BotEvent[] = [
+      { ...write, files: ['note.md', 'other.md'] },
+      { type: 'tool.end', toolId: 'write', resultSummary: '', error: false },
+      { ...write, toolId: 'denied' },
+      { type: 'tool.end', toolId: 'denied', resultSummary: 'Denied', error: true },
+    ];
+    expect(touchedFiles(allSteps(events.map((event, i) => envelope('run', i + 1, event))))).toEqual(
+      [
+        { path: 'note.md', write: true, failed: false },
+        { path: 'other.md', write: true, failed: false },
+      ],
+    );
+  });
+  it('keeps a read file as read when a later write is denied', () => {
+    const events: BotEvent[] = [
+      { ...write, kind: 'file_read', toolId: 'read' },
+      { type: 'tool.end', toolId: 'read', resultSummary: 'Contents', error: false },
+      write,
+      { type: 'tool.end', toolId: 'write', resultSummary: 'Denied', error: true },
+    ];
+    expect(touchedFiles(allSteps(events.map((event, i) => envelope('run', i + 1, event))))).toEqual(
+      [{ path: 'note.md', write: false, failed: false }],
+    );
+  });
+});
 
 // 1. Cancellation must leave the bot idle.
 describe('lastStatus', () => {

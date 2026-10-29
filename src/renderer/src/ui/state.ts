@@ -11,6 +11,8 @@ export type ToolStep = {
   title: string;
   args: string;
   result?: string;
+  files?: string[];
+  completed: boolean;
   failed: boolean;
   running: boolean;
 };
@@ -96,6 +98,8 @@ export function buildBlocks(
           kind: event.kind,
           title: event.title,
           args: event.argsSummary,
+          files: event.files,
+          completed: false,
           failed: false,
           running: !finishedRuns.has(runId),
         };
@@ -112,6 +116,7 @@ export function buildBlocks(
         const step = steps.get(`${runId}:${event.toolId}`);
         if (step) {
           step.running = false;
+          step.completed = true;
           step.failed = event.error;
           step.result = event.resultSummary;
         }
@@ -279,4 +284,21 @@ export function buildRoster(
       { status: lastStatus(events), live: nowDoing(events, t) },
     ]),
   );
+}
+
+export function touchedFiles(steps: ToolStep[]) {
+  const map = new Map<string, { path: string; write: boolean; failed: boolean }>();
+  for (const step of steps) {
+    if (step.kind !== 'file_read' && step.kind !== 'file_write') continue;
+    if (step.kind === 'file_write' && (!step.completed || step.failed)) continue;
+    for (const path of step.files?.length ? step.files : [step.args || step.title]) {
+      const prev = map.get(path);
+      map.set(path, {
+        path,
+        write: (prev?.write ?? false) || step.kind === 'file_write',
+        failed: step.failed,
+      });
+    }
+  }
+  return [...map.values()];
 }

@@ -1,3 +1,4 @@
+import { translate, type Language } from '../../shared/i18n';
 import { resolve, sep } from 'node:path';
 import type { BotEvent } from '../../shared/events';
 import type { Bot, EngineId } from '../../shared/bots';
@@ -12,6 +13,7 @@ import type { Project } from '../../shared/projects';
 export function engineError(
   engine: EngineId,
   message: string,
+  language: Language = 'en',
 ): Extract<BotEvent, { type: 'run.error' }> {
   const auth =
     /\b(?:auth(?:entication|orization)?|oauth)(?:\b|_)|\b(?:unauthori[sz]ed|401)\b|not logged in|\/login\b|\bcodex login\b|login required|(?:token|api[ _-]?key|credentials?|session).*(?:expired|invalid|missing)|(?:expired|invalid|missing).*(?:token|api[ _-]?key|credentials?)/i.test(
@@ -20,7 +22,9 @@ export function engineError(
   return {
     type: 'run.error',
     code: auth ? 'auth' : engine,
-    message: auth ? `errors.${engine}Auth` : message,
+    message: auth
+      ? `errors.${engine}Auth`
+      : message.replace(/^errors\.[a-zA-Z]+(?=: )/, (key) => translate(language, key)),
   };
 }
 export function authStatus(auth: EngineAuth): AuthStatus {

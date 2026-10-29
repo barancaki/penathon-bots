@@ -1,6 +1,33 @@
 import { expect, it } from 'vitest';
 import { translate } from '../src/shared/i18n';
 
+it.each(['en', 'tr'] as const)(
+  'translates model-boundary permission and hook errors in %s',
+  (language) => {
+    for (const key of [
+      'errors.deletionDenied',
+      'errors.indirectDeletion',
+      'errors.toolScopeDenied',
+      'errors.connectorDenied',
+      'errors.approvalNotEditable',
+      'errors.approvalProcessing',
+      'errors.approvalMissing',
+      'errors.networkCeiling',
+      'errors.connectionCeiling',
+    ]) {
+      expect(translate(language, key)).not.toBe(key);
+      if (language === 'en') expect(translate(language, key)).not.toMatch(/[çğıöşüÇĞİÖŞÜ]/);
+    }
+  },
+);
+
+it('interpolates names and counts without changing literal replacement characters', () => {
+  expect(translate('en', 'approval.createBot', { name: 'Writer $& {name}' })).toBe(
+    'Create bot: Writer $& {name}',
+  );
+  expect(translate('tr', 'desktop.approvals', { count: 3 })).toBe('3 onay bekliyor');
+});
+
 it('translates connector warmup in Turkish and English', () => {
   expect(translate('tr', 'notice.connectorsWarming')).toBe('Bağlantılar hazırlanıyor…');
   expect(translate('en', 'notice.connectorsWarming')).toBe('Preparing connections…');
@@ -54,3 +81,9 @@ it.each(['en', 'tr'] as const)(
     }
   },
 );
+
+it('treats Object.prototype names as plain text, not dictionary entries', () => {
+  expect(translate('en', 'constructor')).toBe('constructor');
+  expect(translate('tr', 'Read {constructor}')).toBe('Read {constructor}');
+  expect(translate('en', 'toString')).toBe('toString');
+});

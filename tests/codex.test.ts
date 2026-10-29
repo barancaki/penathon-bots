@@ -1,3 +1,4 @@
+import { translate } from '../src/shared/i18n';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join, sep } from 'node:path';
@@ -326,7 +327,7 @@ it('reads visible models from CODEX_HOME without starting an SDK or reading cred
   );
   const engine = new CodexEngine(context);
   expect(await engine.models()).toEqual([
-    { id: 'default', label: 'Varsayılan' },
+    { id: 'default', label: 'Default' },
     { id: 'available', label: 'Available model' },
     { id: 'alias', label: 'alias' },
   ]);
@@ -342,7 +343,7 @@ it('uses ~/.codex when CODEX_HOME is absent', async () => {
     }),
   );
   expect(await new CodexEngine(context).models()).toEqual([
-    { id: 'default', label: 'Varsayılan' },
+    { id: 'default', label: 'Default' },
     { id: 'home-model', label: 'home-model' },
   ]);
 });
@@ -355,7 +356,7 @@ it.each([
   '{"models":[]}',
 ])('offers only the default for a missing, malformed or empty cache: %s', async (contents) => {
   if (contents !== undefined) await writeFile(join(directory, 'models_cache.json'), contents);
-  expect(await new CodexEngine(context).models()).toEqual([{ id: 'default', label: 'Varsayılan' }]);
+  expect(await new CodexEngine(context).models()).toEqual([{ id: 'default', label: 'Default' }]);
 });
 it.each(['', 'default', 'explicit-model'])(
   'passes model only when explicitly selected: %s',
@@ -524,7 +525,7 @@ it.each([
   const engine = new CodexEngine({ ...context, knowledgeDir: () => vault + sep });
   expect((await collect(engine.run({ ...input(), bot }))).at(-1)).toMatchObject({
     type: 'run.error',
-    message: expect.stringContaining('errors.knowledgeScope: ' + alias),
+    message: expect.stringContaining(translate('en', 'errors.knowledgeScope') + ': ' + alias),
   });
   expect(mock.constructor).not.toHaveBeenCalled();
   expect(mock.runStreamed).not.toHaveBeenCalled();

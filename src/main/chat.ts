@@ -58,10 +58,9 @@ export class ChatService extends EventEmitter {
       rootRunId?: string;
     },
   ) {
-    if (this.closing) throw new Error('App closing');
-    if (parent?.signal.aborted || options?.signal?.aborted) throw new Error('Koşu iptal edildi.');
-    if (parent && parent.depth >= 3)
-      throw new Error('Delegasyon/alt bot derinliği en fazla 3 olabilir.');
+    if (this.closing) throw new Error('errors.appClosing');
+    if (parent?.signal.aborted || options?.signal?.aborted) throw new Error('errors.runCancelled');
+    if (parent && parent.depth >= 3) throw new Error('errors.delegationDepth');
     const bot = this.bots().forRun(botId);
     const engine = this.engines[bot.engine];
     let incompatibleModel = false;
@@ -84,9 +83,9 @@ export class ChatService extends EventEmitter {
         .filter(Boolean)
         .sort((a, b) => b.length - a.length);
     if (this.closing || parent?.signal.aborted || options?.signal?.aborted)
-      throw new Error('Run cancelled');
+      throw new Error('errors.runCancelled');
     if (options?.reportId && this.db.report(options.reportId).processedAt)
-      throw new Error('Report already processed');
+      throw new Error('errors.reportProcessed');
     if (this.isBotActive(botId)) throw new Error('errors.botBusy');
     const run = this.db.start(
       bot,
@@ -211,7 +210,7 @@ export class ChatService extends EventEmitter {
               controller.signal,
               append,
               async (edited) => {
-                if (edited !== undefined) throw new Error('Bu onay düzenlenemez.');
+                if (edited !== undefined) throw new Error('errors.approvalNotEditable');
                 return true;
               },
             )),
@@ -259,7 +258,10 @@ export class ChatService extends EventEmitter {
     );
     if (failure)
       throw new Error(
-        failure.event.type === 'run.error' ? failure.event.message : 'Alt bot koşusu iptal edildi.',
+        translate(
+          this.language(),
+          failure.event.type === 'run.error' ? failure.event.message : 'errors.childCancelled',
+        ),
       );
     return detail.messages.filter((message) => message.role === 'assistant').at(-1)?.text ?? '';
   }
@@ -267,7 +269,7 @@ export class ChatService extends EventEmitter {
     let active: [string, unknown] | undefined;
     while ((active = [...this.active.entries()].find(([, run]) => run.botId === botId)))
       await this.waitForRun(active[0], { signal });
-    if (signal.aborted) throw new Error('Run cancelled');
+    if (signal.aborted) throw new Error('errors.runCancelled');
   }
   async waitForRun(conversationId: string, parent: Pick<Execution, 'signal'>): Promise<void> {
     const active = this.active.get(conversationId);
@@ -277,7 +279,7 @@ export class ChatService extends EventEmitter {
       await Promise.race([
         active.task,
         new Promise<never>((_, reject) => {
-          abort = () => reject(new Error('Alt bot koşusu iptal edildi.'));
+          abort = () => reject(new Error('errors.childCancelled'));
           parent.signal.addEventListener('abort', abort, { once: true });
           if (parent.signal.aborted) abort();
         }),
@@ -348,7 +350,7 @@ export class ChatService extends EventEmitter {
     const safe = redact(input, await this.secrets());
     const run = this.db.runInfo(runId);
     if (botId === 'chief' || run.botId !== botId || run.status !== 'running')
-      throw new Error('Report permission denied');
+      throw new Error('errors.reportPermission');
     return this.db.addReport({
       ...safe,
       botId,
@@ -359,8 +361,8 @@ export class ChatService extends EventEmitter {
   }
   async processReportNow(id: string): Promise<{ conversationId: string }> {
     const report = this.db.report(id);
-    if (report.processedAt) throw new Error('Report already processed');
-    if (!this.bots().hasReportDestination()) throw new Error('Knowledge folder missing');
+    if (report.processedAt) throw new Error('errors.reportProcessed');
+    if (!this.bots().hasReportDestination()) throw new Error('errors.reportDestinationMissing');
     const run = await this.send(
       'chief',
       translate(this.language(), 'routines.reportPrompt') +

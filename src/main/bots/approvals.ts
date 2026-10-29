@@ -50,7 +50,7 @@ export class Approvals {
         accepting: false,
         expire,
         respond: async (decision, edited) => {
-          if (entry.accepting) throw new Error('Onay zaten işleniyor.');
+          if (entry.accepting) throw new Error('errors.approvalProcessing');
           if (decision === 'rejected') {
             finish('rejected');
             return;
@@ -73,8 +73,8 @@ export class Approvals {
   }
   async respond(id: string, decision: ApprovalDecision, edited?: unknown): Promise<void> {
     const entry = this.pending.get(id);
-    if (!entry) throw new Error('Onay bulunamadı veya süresi dolmuş.');
-    if (entry.accepting) throw new Error('Onay zaten işleniyor.');
+    if (!entry) throw new Error('errors.approvalMissing');
+    if (entry.accepting) throw new Error('errors.approvalProcessing');
     const applying = entry.respond(decision, edited);
     entry.applying = applying;
     try {

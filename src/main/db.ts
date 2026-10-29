@@ -548,7 +548,7 @@ export class Repository extends EventEmitter {
   report(id: string): WorkReport {
     const row = this.db.prepare('SELECT * FROM work_reports WHERE id = ?').get(id) as unknown as
       (WorkReport & { decisions: string; files: string; open: string }) | undefined;
-    if (!row) throw new Error('Report missing');
+    if (!row) throw new Error('errors.reportMissing');
     return {
       ...row,
       runId: row.runId ?? undefined,

@@ -1,3 +1,5 @@
+import matter from 'gray-matter';
+import { translate } from '../src/shared/i18n';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { mkdir, readFile, symlink, writeFile } from 'node:fs/promises';
 import { join, relative } from 'node:path';
@@ -112,7 +114,10 @@ it.each([
     handler = async (input) => {
       const marking = input.callTool!('mark_reports_processed', { ids: [report.id], into });
       if (allowed) await marking;
-      else await expect(marking).rejects.toThrow('Chief knowledge folder required');
+      else
+        await expect(marking).rejects.toThrow(
+          'A writable knowledge or project notes folder is required.',
+        );
       return 'checked';
     };
     await chat.send(callerId, 'Process report');
@@ -317,10 +322,10 @@ it('limits routine tools to the caller subtree and rejects role names or invalid
     ).rejects.toThrow();
     await expect(
       input.callTool!('create_routine', { ...routineDraft, name: parent.name }),
-    ).rejects.toThrow('işin adı');
+    ).rejects.toThrow('Name the routine after the work');
     await expect(
       input.callTool!('create_routine', { ...routineDraft, name: parent.name.toUpperCase() }),
-    ).rejects.toThrow('işin adı');
+    ).rejects.toThrow('Name the routine after the work');
     await expect(
       input.callTool!('create_routine', {
         ...routineDraft,
@@ -363,7 +368,9 @@ it('updates only approved routine fields, preserves disabled state and rejects s
     enabled: false,
     prompt: 'User changed it',
   });
-  await expect(chat.approvals.respond(approval.approvalId, 'approved')).rejects.toThrow('changed');
+  await expect(chat.approvals.respond(approval.approvalId, 'approved')).rejects.toThrow(
+    'errors.routineApprovalChanged',
+  );
   await chat.approvals.respond(approval.approvalId, 'rejected');
   await finished();
 });
@@ -405,7 +412,7 @@ it('masks explicit reports and restricts report processing tools to Chief', asyn
   const worker = await store.create(draft);
   secrets = ['secret-report-123456'];
   handler = async (input) => {
-    await expect(input.callTool!('list_reports', {})).rejects.toThrow('Chief only');
+    await expect(input.callTool!('list_reports', {})).rejects.toThrow('Only Chief may do this.');
     await expect(
       input.callTool!('mark_reports_processed', { ids: ['x'], into: 'daily.md' }),
     ).rejects.toThrow();
@@ -566,7 +573,7 @@ it('delegates to idle bots, returns results, reports busy/errors and forbids sel
   handler = async (input) => {
     if (input.bot.id !== 'chief') return 'Delegated answer';
     await expect(input.callTool!('delegate_to_bot', { id: 'chief', task: 'Self' })).rejects.toThrow(
-      'kendine',
+      'itself',
     );
     return input.callTool!('delegate_to_bot', { id: child.id, task: 'Work' });
   };
@@ -596,7 +603,7 @@ it('rejects busy delegate targets and emits an error card', async () => {
     try {
       await expect(
         input.callTool!('delegate_to_bot', { id: worker.id, task: 'Overlap' }),
-      ).rejects.toThrow('errors.botBusy');
+      ).rejects.toThrow('This bot already has an active run.');
       return 'Busy reported';
     } finally {
       release();
@@ -610,7 +617,7 @@ it('rejects busy delegate targets and emits an error card', async () => {
       ({ event }) =>
         event.type === 'card' &&
         event.kind === 'bot.delegated' &&
-        event.data.error === 'errors.botBusy',
+        event.data.error === 'This bot already has an active run.',
     ),
   ).toBe(true);
 });
@@ -640,7 +647,7 @@ it('bounds nested spawning at three edges and five spawns per root execution', a
     if (inputs.length === 4) {
       await expect(
         input.callTool!('spawn_temp_bot', { name: 'Too deep', task: 'No' }),
-      ).rejects.toThrow('en fazla 3');
+      ).rejects.toThrow('cannot exceed 3');
       return 'Depth limited';
     }
     return input.callTool!('spawn_temp_bot', { name: 'Level', task: 'Go' });
@@ -653,7 +660,7 @@ it('bounds nested spawning at three edges and five spawns per root execution', a
     for (let n = 0; n < 5; n++)
       await input.callTool!('spawn_temp_bot', { name: 'Batch', task: 'Go' });
     await expect(input.callTool!('spawn_temp_bot', { name: 'Sixth', task: 'No' })).rejects.toThrow(
-      'en fazla 5',
+      'At most 5',
     );
     return 'Bounded';
   };
@@ -677,7 +684,7 @@ it('counts tool-started routine runs toward the same three-edge depth limit', as
     const next = chain[index + 1];
     const args = { botId: next.id, routineId: routineIds.get(next.id)! };
     if (index === 3) {
-      await expect(input.callTool!('run_routine_now', args)).rejects.toThrow('en fazla 3');
+      await expect(input.callTool!('run_routine_now', args)).rejects.toThrow('cannot exceed 3');
       return 'Depth limited';
     }
     return input.callTool!('run_routine_now', args);
@@ -701,7 +708,7 @@ it('shares the root spawn budget with tool-started routines', async () => {
     if (input.bot.id === worker.id)
       await expect(
         input.callTool!('spawn_temp_bot', { name: 'Sixth routine child', task: 'No' }),
-      ).rejects.toThrow('en fazla 5');
+      ).rejects.toThrow('At most 5');
     return 'Budget preserved';
   };
   await chat.send('chief', 'Shared budget');
@@ -791,13 +798,15 @@ it('rejects vault-overlapping create/update/spawn tool proposals without approva
     writeScope: [project],
   });
   handler = async (input) => {
-    await expect(input.callTool!('create_bot', { draft })).rejects.toThrow('errors.knowledgeScope');
+    await expect(input.callTool!('create_bot', { draft })).rejects.toThrow(
+      translate('en', 'errors.knowledgeScope'),
+    );
     await expect(
       input.callTool!('update_bot', { id: worker.id, patch: { writeScope: [dir] } }),
-    ).rejects.toThrow('errors.knowledgeScope');
+    ).rejects.toThrow(translate('en', 'errors.knowledgeScope'));
     await expect(
       input.callTool!('spawn_temp_bot', { name: 'Unsafe child', task: 'Work' }),
-    ).rejects.toThrow('errors.knowledgeScope');
+    ).rejects.toThrow(translate('en', 'errors.knowledgeScope'));
     return 'Rejected unsafe roots';
   };
   await chat.send('chief', 'Unsafe proposals');
@@ -913,7 +922,7 @@ it.each([false, true])(
         'approved',
         edited ? { ...draft, connections: ['filesystem'] } : undefined,
       ),
-    ).rejects.toThrow('Bağlantılar');
+    ).rejects.toThrow('errors.connectionCeiling');
     expect(store.list()).toHaveLength(2);
     expect(resolutions()).toEqual([]);
     await chat.approvals.respond(approval.approvalId, 'approved', draft);
@@ -954,7 +963,7 @@ it.each([false, true])(
         'approved',
         edited ? { connections: ['filesystem'] } : undefined,
       ),
-    ).rejects.toThrow('Bağlantılar');
+    ).rejects.toThrow('errors.connectionCeiling');
     expect(store.get(child.id)).toEqual(child);
     await chat.approvals.respond(approval.approvalId, 'approved', { name: 'Renamed' });
     await expect.poll(() => chat.isBotActive(parent.id)).toBe(false);
@@ -984,7 +993,9 @@ it('rejects a creation snapshot instead of silently inheriting a narrowed write 
   await chat.send('chief', 'Create');
   const approval = await request();
   await store.update('chief', { writeScope: [] });
-  await expect(chat.approvals.respond(approval.approvalId, 'approved')).rejects.toThrow('Yazma');
+  await expect(chat.approvals.respond(approval.approvalId, 'approved')).rejects.toThrow(
+    'errors.writeCeiling',
+  );
   expect(store.list()).toHaveLength(1);
   expect(resolutions()).toEqual([]);
   await chat.approvals.respond(approval.approvalId, 'approved', draft);
@@ -1017,13 +1028,13 @@ it('rejects network escalation through all bot tools before approvals or executi
   handler = async (input) => {
     await expect(
       input.callTool!('create_bot', { draft: { ...draft, network: true } }),
-    ).rejects.toThrow('Ağ');
+    ).rejects.toThrow('Network');
     await expect(
       input.callTool!('update_bot', { id: worker.id, patch: { network: true } }),
-    ).rejects.toThrow('Ağ');
+    ).rejects.toThrow('Network');
     await expect(
       input.callTool!('spawn_temp_bot', { name: 'Online', network: true, task: 'Research' }),
-    ).rejects.toThrow('Ağ');
+    ).rejects.toThrow('Network');
     return 'Denied';
   };
   await chat.send('chief', 'Test network');
@@ -1043,10 +1054,10 @@ it.each(['read', 'write', 'full'] as const)(
     handler = async (input) => {
       await expect(
         input.callTool!('create_bot', { draft: { ...safe, readScope: [knowledgeDir] } }),
-      ).rejects.toThrow(error);
+      ).rejects.toThrow(translate('en', 'errors.knowledgeScope') + ': ' + knowledgeDir);
       await expect(
         input.callTool!('update_bot', { id: worker.id, patch: { readScope: [knowledgeDir] } }),
-      ).rejects.toThrow(error);
+      ).rejects.toThrow(translate('en', 'errors.knowledgeScope') + ': ' + knowledgeDir);
       await expect(
         input.callTool!('spawn_temp_bot', {
           ...safe,
@@ -1054,10 +1065,10 @@ it.each(['read', 'write', 'full'] as const)(
           task: 'Work',
           readScope: [knowledgeDir],
         }),
-      ).rejects.toThrow(error);
+      ).rejects.toThrow(translate('en', 'errors.knowledgeScope') + ': ' + knowledgeDir);
       await expect(
         input.callTool!('grant_project', { botId: worker.id, projectId: 'vault-project', level }),
-      ).rejects.toThrow(error);
+      ).rejects.toThrow(translate('en', 'errors.knowledgeScope') + ': ' + knowledgeDir);
       return 'Denied';
     };
     await chat.send('chief', 'Test vault');
@@ -1074,5 +1085,32 @@ it.each(['read', 'write', 'full'] as const)(
     expect(requests()).toEqual([]);
     expect(store.list()).toHaveLength(2);
     expect(store.get(worker.id)).toEqual(worker);
+  },
+);
+
+it.each(['en', 'tr'] as const)(
+  'localizes a saved Turkish system routine approval in %s',
+  async (language) => {
+    const file = join(store.dir, 'chief.md');
+    await store.close();
+    const saved = matter(await readFile(file, 'utf8'));
+    saved.data.routines[0].name = translate('tr', 'routines.reportProcessing');
+    saved.data.routines[0].prompt = translate('tr', 'routines.reportPrompt');
+    await writeFile(file, matter.stringify(saved.content, saved.data));
+    store = new BotStore(store.dir, chiefBot(dir, 'en'));
+    await store.init();
+    vi.spyOn(chat, 'language').mockReturnValue(language);
+    handler = (input) =>
+      input.callTool!('update_routine', { routineId: 'vault-update', patch: { enabled: true } });
+    await chat.send('chief', 'Change schedule');
+    const approval = await request();
+    expect(approval.title).toBe(
+      translate(language, 'approval.updateRoutine', {
+        name: translate(language, 'routines.reportProcessing'),
+      }),
+    );
+    expect(approval.details).toBe(translate(language, 'routines.reportPrompt'));
+    await chat.approvals.respond(approval.approvalId, 'rejected');
+    await finished();
   },
 );

@@ -22,6 +22,7 @@ export type EngineAuth = { mode: 'local-cli' | 'api-key'; apiKey?: string };
 export type EngineContext = {
   auth(): EngineAuth | Promise<EngineAuth>;
   knowledgeDir(): string | undefined;
+  language?(): Settings['language'];
   profile?(): Settings['profile'];
   team?(): Pick<Bot, 'name' | 'role'>[];
   workdir?(): string;

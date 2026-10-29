@@ -411,7 +411,7 @@ it('allows Chief to create rooms without approval, requires existing bots and re
     } else
       await expect(
         input.callTool!('create_room', { name: 'Forbidden', members: [workerId] }),
-      ).rejects.toThrow('Chief only');
+      ).rejects.toThrow('Only Chief may do this.');
     return 'Done';
   };
   await chat.rooms.send(room.id, '@Chief @LeadTakibi');
@@ -439,7 +439,7 @@ it('posts member messages through the tool and queues their mentions within the 
   handler = async (input) => {
     await expect(
       input.callTool!('post_to_room', { roomId: room.id, text: 'Forbidden' }),
-    ).rejects.toThrow('Room membership required');
+    ).rejects.toThrow('Room membership is required.');
     denied();
     return 'Done';
   };

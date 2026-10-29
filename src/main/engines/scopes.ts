@@ -86,8 +86,7 @@ export function allowsConnection(connections: string[], server: string): boolean
 }
 export class BotScopeError extends Error {}
 export function assertNetworkCeiling(bot: Bot, parent: Bot): void {
-  if (bot.network && !parent.network)
-    throw new BotScopeError('Ağ erişimi üst botun izinlerini aşamaz.');
+  if (bot.network && !parent.network) throw new BotScopeError('errors.networkCeiling');
 }
 export function assertProjectCeiling(bot: Bot, parent: Bot, approved: ProjectGrant[] = []): void {
   for (const grant of bot.projects) {
@@ -100,7 +99,7 @@ export function assertProjectCeiling(bot: Bot, parent: Bot, approved: ProjectGra
       continue;
     const superior = parent.projects.find((value) => value.project === grant.project);
     if (!superior || accessRank[grant.level] > accessRank[superior.level])
-      throw new BotScopeError('Proje izinleri üst botun izinlerinin alt kümesi olmalı.');
+      throw new BotScopeError('errors.projectCeiling');
   }
 }
 export async function assertCeiling(
@@ -127,18 +126,18 @@ export async function assertCeiling(
   );
   const levels = ['read-only', 'workspace-write', 'danger-full-access'];
   if (levels.indexOf(bot.sandbox) > levels.indexOf(parent.sandbox))
-    throw new BotScopeError('Sandbox üst botun izinlerini aşamaz.');
+    throw new BotScopeError('errors.sandboxCeiling');
   for (const path of access.readRoots)
     if (!isAbsolute(path) || !(await inScope(path, ceiling.readRoots)))
-      throw new BotScopeError('Okuma/çalışma klasörü üst botun kapsamını aşamaz: ' + path);
+      throw new BotScopeError('errors.readCeiling: ' + path);
   for (const path of access.fullRoots)
     if (!isAbsolute(path) || !(await inScope(path, ceiling.fullRoots)))
-      throw new BotScopeError('Full klasörü üst botun Full kapsamını aşamaz: ' + path);
+      throw new BotScopeError('errors.fullCeiling: ' + path);
   for (const path of access.writeRoots)
     if (!isAbsolute(path) || !(await inScope(path, ceiling.writeRoots)))
-      throw new BotScopeError('Yazma klasörü üst botun kapsamını aşamaz: ' + path);
+      throw new BotScopeError('errors.writeCeiling: ' + path);
   if (bot.connections.some((name) => !allowsConnection(parent.connections, name)))
-    throw new BotScopeError('Bağlantılar üst botun izinlerinin alt kümesi olmalı.');
+    throw new BotScopeError('errors.connectionCeiling');
 }
 export async function assertKnowledgeScope(
   bot: Bot,
@@ -155,9 +154,7 @@ export async function assertKnowledgeScope(
       .flatMap((project) => project.folders),
   ])
     if ((await inScope(knowledgeDir, [root])) || (await inScope(root, [knowledgeDir])))
-      throw new BotScopeError(
-        `errors.knowledgeScope: ${root} (knowledge directory overlap: ${knowledgeDir}; only Chief may access it)`,
-      );
+      throw new BotScopeError(`errors.knowledgeScope: ${root} (${knowledgeDir})`);
 }
 export async function withoutKnowledge(
   bot: Bot,

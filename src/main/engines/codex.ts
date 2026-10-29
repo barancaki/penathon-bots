@@ -1,3 +1,4 @@
+import { translate } from '../../shared/i18n';
 import { readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
@@ -27,7 +28,9 @@ export class CodexEngine implements EngineAdapter {
   private mcp = new PenathonHttpServer();
   constructor(private context: EngineContext) {}
   async models() {
-    const defaults = [{ id: 'default', label: 'Varsayılan' }];
+    const defaults = [
+      { id: 'default', label: translate(this.context.language?.() ?? 'en', 'engine.defaultModel') },
+    ];
     try {
       const file = join(process.env.CODEX_HOME || join(homedir(), '.codex'), 'models_cache.json');
       const cache = z
@@ -221,7 +224,11 @@ export class CodexEngine implements EngineAdapter {
         if (event.type === 'turn.failed' || event.type === 'error') {
           finished = true;
           yield { type: 'status', status: 'error' };
-          yield engineError('codex', event.type === 'error' ? event.message : event.error.message);
+          yield engineError(
+            'codex',
+            event.type === 'error' ? event.message : event.error.message,
+            this.context.language?.() ?? 'en',
+          );
           return;
         }
       }
@@ -230,7 +237,11 @@ export class CodexEngine implements EngineAdapter {
       if (!finished && !controller.signal.aborted) {
         finished = true;
         yield { type: 'status', status: 'error' };
-        yield engineError('codex', error instanceof Error ? error.message : 'errors.engine');
+        yield engineError(
+          'codex',
+          error instanceof Error ? error.message : 'errors.engine',
+          this.context.language?.() ?? 'en',
+        );
       }
     } finally {
       registration?.revoke();

@@ -18,6 +18,36 @@ const done: NotificationEvent = {
 };
 afterEach(() => vi.useRealTimers());
 
+it.each(['en', 'tr'] as const)(
+  'uses %s for notification titles, fallback text and batched notices',
+  (language) => {
+    vi.useFakeTimers();
+    const config = { ...settings(), language };
+    const event = { ...done, botName: 'Writer', text: '' };
+    expect(notificationDecision(event, config, {}, false)?.body).toBe(
+      language === 'en' ? 'Work completed.' : 'İş tamamlandı.',
+    );
+    expect(notificationDecision({ ...event, type: 'run.error' }, config, {}, false)?.title).toBe(
+      language === 'en' ? 'Writer stopped with an error' : 'Writer bir hatayla durdu',
+    );
+    const show = vi.fn();
+    const batch = new NotificationBatcher(
+      (event) => notificationDecision(event, config, {}, false),
+      show,
+      () => config.language,
+    );
+    batch.add({ ...event, type: 'approval.request' });
+    batch.add({ ...event, id: 'another', type: 'approval.request' });
+    vi.advanceTimersByTime(2000);
+    expect(show).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: language === 'en' ? '2 awaiting approval' : '2 onay bekliyor',
+      }),
+    );
+    batch.close();
+  },
+);
+
 it('cleans markdown, collapses whitespace and limits previews without splitting emoji', () => {
   expect(notificationText(done.text)).toBe('Hazır Dosya tamam.');
   expect(notificationText('```ts\nconst x = 1;\n```\n> Sonuç\n- tamam')).toBe(
@@ -100,6 +130,7 @@ describe('notification batching', () => {
     const batch = new NotificationBatcher(
       (event) => notificationDecision(event, settings(), {}, false),
       show,
+      () => settings().language,
     );
     batch.add(done);
     batch.add(done);
@@ -127,6 +158,7 @@ describe('notification batching', () => {
     const batch = new NotificationBatcher(
       (event) => notificationDecision(event, config, { conversationId: 'chat' }, focused),
       show,
+      () => settings().language,
     );
     batch.add(done);
     focused = true;
@@ -153,6 +185,7 @@ describe('notification batching', () => {
     const batch = new NotificationBatcher(
       (event) => notificationDecision(event, settings(), {}, false),
       show,
+      () => settings().language,
     );
     batch.add({ ...done, type: 'approval.request' });
     vi.advanceTimersByTime(2000);
@@ -169,6 +202,7 @@ it('combines mixed notifications and prioritizes an approval destination', () =>
   const batch = new NotificationBatcher(
     (event) => notificationDecision(event, settings(), {}, false),
     show,
+    () => settings().language,
   );
   batch.add({
     ...done,

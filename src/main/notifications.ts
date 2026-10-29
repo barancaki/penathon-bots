@@ -1,4 +1,5 @@
-﻿import type { AppView } from '../shared/api';
+import { translate, type Language } from '../shared/i18n';
+import type { AppView } from '../shared/api';
 import type { Settings } from '../shared/settings';
 import type { RoutineRun } from '../shared/routines';
 
@@ -33,10 +34,12 @@ export function notificationText(text: string): string {
 
 export function notificationDecision(
   event: NotificationEvent,
-  settings: Pick<Settings, 'notifications'>,
+  settings: Pick<Settings, 'notifications' | 'language'>,
   view: AppView,
   focused: boolean,
 ): Notice | undefined {
+  const t = (key: string, params?: Record<string, string | number>) =>
+    translate(settings.language, key, params);
   const options = settings.notifications;
   const sameView = event.target.roomId
     ? event.target.roomId === view.roomId
@@ -50,11 +53,11 @@ export function notificationDecision(
       break;
     case 'approval.request':
       if (!options.approval) return;
-      title = `Onay bekliyor: ${event.botName}`;
+      title = t('notification.approval', { name: event.botName });
       break;
     case 'run.error':
       if (!options.error) return;
-      title = `${event.botName} bir hatayla durdu`;
+      title = t('notification.error', { name: event.botName });
       break;
     case 'routine.finished':
       if (!options.routine || !['done', 'error'].includes(event.status)) return;
@@ -65,7 +68,11 @@ export function notificationDecision(
       title = event.botName;
       break;
   }
-  return { title, body: notificationText(event.text) || 'İş tamamlandı.', target: event.target };
+  return {
+    title,
+    body: notificationText(event.text) || t('notification.done'),
+    target: event.target,
+  };
 }
 
 /** A bounded two-second window avoids starving notifications during continuous traffic. */
@@ -76,6 +83,7 @@ export class NotificationBatcher {
   constructor(
     private decide: (event: NotificationEvent) => Notice | undefined,
     private show: (notice: Notice) => void,
+    private language: () => Language = () => 'en',
   ) {}
   add(event: NotificationEvent): void {
     if (this.delivered.has(event.id) || !this.decide(event)) return;
@@ -104,17 +112,16 @@ export class NotificationBatcher {
     const count = notices.length;
     const type = notices[0].event.type;
     const sameType = notices.every(({ event }) => event.type === type);
-    const title = !sameType
-      ? `Penathon Bots — ${count} bildirim`
-      : type === 'run.done'
-        ? `${count} bot işini bitirdi`
-        : type === 'approval.request'
-          ? `${count} onay bekliyor`
-          : type === 'run.error'
-            ? `${count} bot bir hatayla durdu`
-            : type === 'routine.finished'
-              ? `⏰ ${count} rutin tamamlandı`
-              : `${count} yeni oda mesajı`;
+    const key = !sameType
+      ? 'mixed'
+      : {
+          'run.done': 'done',
+          'approval.request': 'approval',
+          'run.error': 'error',
+          'routine.finished': 'routine',
+          'room.message': 'room',
+        }[type];
+    const title = translate(this.language(), `notification.batch.${key}`, { count });
     const target =
       notices.findLast(({ event }) => event.type === 'approval.request')?.notice.target ??
       notices.at(-1)!.notice.target;

@@ -111,6 +111,7 @@ async function start(): Promise<void> {
           : undefined,
     }),
     knowledgeDir: () => settings.get().knowledgeDir,
+    language: () => settings.get().language,
     profile: () => settings.get().profile,
     projects: () => settings.get().projects,
     getBot: (id: string) => bots.get(id),

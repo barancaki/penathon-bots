@@ -43,7 +43,7 @@ function tools(callerId = 'chief') {
   return new BotTools(
     bots,
     {} as Repository,
-    { isBotActive: () => false } as unknown as ChatService,
+    { isBotActive: () => false, language: () => 'en' } as unknown as ChatService,
     approvals,
     callerId,
     'run',
@@ -89,7 +89,7 @@ it('requires Chief to create projects and validates input before asking', async 
   const worker = await bots.create(draft);
   await expect(
     tools(worker.id).call('create_project', { name: 'Denied', folders: [dir] }),
-  ).rejects.toThrow('Şef');
+  ).rejects.toThrow('Only Chief');
   await expect(
     tools().call('create_project', { name: 'Denied', folders: ['relative'] }),
   ).rejects.toThrow();
@@ -135,7 +135,7 @@ it('limits ordinary grants to descendants and own level, including self and unre
       projectId: project.id,
       level: 'full',
     }),
-  ).rejects.toThrow('seviyeni');
+  ).rejects.toThrow('your own level');
   const pending = tools(parent.id).call('grant_project', {
     botId: child.id,
     projectId: project.id,
@@ -169,10 +169,14 @@ it('revalidates caller permissions and project snapshots at approval time', asyn
   });
   const approval = await request();
   await bots.grantProject('chief', parent.id, project.id, 'read');
-  await expect(approvals.respond(approval.approvalId, 'approved')).rejects.toThrow('seviyeni');
+  await expect(approvals.respond(approval.approvalId, 'approved')).rejects.toThrow(
+    'errors.projectLevel',
+  );
   expect(bots.get(child.id).projects).toEqual([]);
   await projects.save({ ...project, description: 'Changed' });
-  await expect(approvals.respond(approval.approvalId, 'approved')).rejects.toThrow('değişti');
+  await expect(approvals.respond(approval.approvalId, 'approved')).rejects.toThrow(
+    'errors.projectApprovalChanged',
+  );
   await approvals.respond(approval.approvalId, 'rejected');
   await pending;
 });

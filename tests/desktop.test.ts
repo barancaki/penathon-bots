@@ -132,6 +132,39 @@ function notices() {
   })[];
 }
 
+it('refreshes tray labels, activity and the background notice when the interface language changes', () => {
+  const { config, window } = setup();
+  config.language = 'en';
+  desktop.settingsChanged();
+  expect(
+    menu()
+      .map((item) => item.label)
+      .filter(Boolean),
+  ).toEqual(['Open', 'Pause notifications', 'Quit']);
+  const tray = native.trays[0] as Tray;
+  expect(tray.setToolTip).toHaveBeenLastCalledWith('Penathon Bots — idle');
+  desktop.updateActivity({
+    running: [{ botId: 'chief', name: 'Chief', conversationId: 'chat' }],
+    pendingApprovals: 2,
+  });
+  expect(window.setTitle).toHaveBeenLastCalledWith(
+    'Penathon Bots — 1 running · 2 awaiting approval',
+  );
+  expect(tray.setToolTip).toHaveBeenLastCalledWith(
+    'Penathon Bots — Running bots: 1 / 2 awaiting approval',
+  );
+  window.emit('close', { preventDefault: vi.fn() });
+  expect(notices()[0].options.body).toBe(
+    'Penathon Bots is running in the background; open it from the tray.',
+  );
+  config.language = 'tr';
+  desktop.settingsChanged();
+  expect(menu().some((item) => item.label === 'Aç')).toBe(true);
+  expect(tray.setToolTip).toHaveBeenLastCalledWith(
+    'Penathon Bots — 1 bot çalışıyor / 2 onay bekliyor',
+  );
+});
+
 it('claims a single instance, restores the first instance and uses the builder app id on Windows', () => {
   vi.stubGlobal('process', { ...process, platform: 'win32' });
   native.app.requestSingleInstanceLock.mockReturnValue(false);

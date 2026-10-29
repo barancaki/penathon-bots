@@ -2,7 +2,7 @@ import type { Bot } from '../../../shared/bots';
 import type { EventEnvelope } from '../../../shared/events';
 import { Avatar } from './Avatar';
 import { AlertIcon, CheckIcon, SpinnerIcon } from './icons';
-import { allSteps, lastStatus, nowDoing, type ToolStep } from './state';
+import { allSteps, lastStatus, nowDoing, touchedFiles } from './state';
 import type { T } from './strings';
 import { KindIcon } from './Transcript';
 import { RoutinesSection } from './Routines';
@@ -147,21 +147,6 @@ export function WorkPanel({
       />
     </aside>
   );
-}
-
-function touchedFiles(steps: ToolStep[]) {
-  const map = new Map<string, { path: string; write: boolean; failed: boolean }>();
-  for (const step of steps) {
-    if (step.kind !== 'file_read' && step.kind !== 'file_write') continue;
-    const path = step.args || step.title;
-    const prev = map.get(path);
-    map.set(path, {
-      path,
-      write: (prev?.write ?? false) || step.kind === 'file_write',
-      failed: step.failed,
-    });
-  }
-  return [...map.values()];
 }
 
 function baseName(path: string) {

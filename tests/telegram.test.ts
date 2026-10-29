@@ -168,6 +168,8 @@ beforeEach(async () => {
       events.push(event);
       bridge.onEvent(event);
     },
+    undefined,
+    () => settings.get().language,
   );
   bridge = new TelegramBridge(
     settings,
@@ -209,6 +211,85 @@ async function connectedPair() {
   await connect();
   await pair();
 }
+
+it.each(['en', 'tr'] as const)(
+  'uses the %s interface language for Telegram replies, approval buttons and model denial',
+  async (language) => {
+    await settings.set({ language });
+    await connectedPair();
+    await expect
+      .poll(() => messages().at(-1))
+      .toBe(language === 'en' ? 'Pairing completed.' : 'Eşleşme tamamlandı.');
+    await push(message('/new'));
+    await expect
+      .poll(() => messages().at(-1))
+      .toBe(language === 'en' ? 'New conversation ready.' : 'Yeni sohbet hazır.');
+    await push(message());
+    await expect
+      .poll(() => messages().at(-1))
+      .toBe(
+        language === 'en'
+          ? 'Files and photos are not supported yet.'
+          : 'Dosya ve fotoğraflar henüz desteklenmiyor.',
+      );
+    engineRun = async function* () {
+      yield { type: 'run.error', code: 'test', message: 'errors.engine' };
+    };
+    await push(message('fail'));
+    await expect
+      .poll(() => messages().at(-1))
+      .toBe(
+        language === 'en'
+          ? 'The run could not be completed. Check the app.'
+          : 'Koşu tamamlanamadı. Uygulamayı kontrol et.',
+      );
+    let result: unknown;
+    engineRun = async function* (input) {
+      result = await input.callTool!('create_bot', {
+        draft: { name: 'Writer', engine: 'claude', instructions: 'Write.' },
+      });
+      yield { type: 'run.done', durationMs: 1 };
+    };
+    await push(message('create'));
+    await expect
+      .poll(() => methods('sendMessage').some((call) => !!call.body.reply_markup))
+      .toBe(true);
+    const card = methods('sendMessage').find((call) => !!call.body.reply_markup)!;
+    expect(card.body.text).toContain(
+      language === 'en' ? 'Create bot: Writer' : 'Bot oluştur: Writer',
+    );
+    const markup = card.body.reply_markup as {
+      inline_keyboard: { text: string; callback_data: string }[][];
+    };
+    expect(markup.inline_keyboard[0].map((button) => button.text)).toEqual(
+      language === 'en' ? ['Approve', 'Cancel'] : ['Onayla', 'Vazgeç'],
+    );
+    await push({
+      callback_query: {
+        id: 'localized-reject',
+        from: { id: 42 },
+        message: {
+          message_id: methods('sendMessage').indexOf(card) + 1,
+          chat: { id: 42, type: 'private' },
+        },
+        data: markup.inline_keyboard[0][1].callback_data,
+      },
+    });
+    await expect
+      .poll(() => result)
+      .toBe(
+        language === 'en'
+          ? 'The user cancelled or the approval expired.'
+          : 'Kullanıcı vazgeçti veya onayın süresi doldu.',
+      );
+    await expect
+      .poll(() => methods('answerCallbackQuery').at(-1)?.body.text)
+      .toBe(language === 'en' ? 'Response saved.' : 'Yanıt kaydedildi.');
+    expect(methods('editMessageText').at(-1)?.body.text).toContain(
+      language === 'en' ? 'Cancelled' : 'Vazgeçildi',
+    );
+  },
+);
 async function answered(count = 1) {
   await expect.poll(() => messages().filter((text) => text === 'Yanıt').length).toBe(count);
 }

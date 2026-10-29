@@ -236,22 +236,22 @@ it('enforces project paths for native tools and MCP including symlinks and rejec
 it('enforces project grant ceilings even for Chief bot proposals and user updates reject unknown projects', async () => {
   const project = await projects.save({ name: 'Project', folders: [work] });
   const read = [{ project: project.id, level: 'read' as const }];
-  await expect(bots.draft({ ...draft, projects: read })).rejects.toThrow('Proje');
+  await expect(bots.draft({ ...draft, projects: read })).rejects.toThrow('errors.projectCeiling');
   await bots.update('chief', { projects: [{ project: project.id, level: 'write' }] });
   const parent = await bots.create({ ...draft, projects: read });
   await expect(
     bots.create({ ...draft, projects: [{ project: project.id, level: 'write' }] }, parent.id),
-  ).rejects.toThrow('Proje');
+  ).rejects.toThrow('errors.projectCeiling');
   const child = await bots.create({ ...draft, name: 'Child', projects: read }, parent.id);
   await expect(
     bots.update(child.id, { projects: [{ project: 'missing', level: 'read' }] }),
   ).rejects.toThrow();
   await expect(
     bots.previewUpdate(parent.id, { projects: [{ project: project.id, level: 'full' }] }, 'chief'),
-  ).rejects.toThrow('Proje');
+  ).rejects.toThrow('errors.projectCeiling');
   await expect(
     assertCeiling({ ...child, projects: read }, { ...parent, projects: [] }, projects.list()),
-  ).rejects.toThrow('Proje');
+  ).rejects.toThrow('errors.projectCeiling');
 });
 it('persists Chief grant exceptions across restart while ordinary bot changes still respect ceilings', async () => {
   const project = await projects.save({ name: 'Project', folders: [work] });
@@ -273,7 +273,7 @@ it('persists Chief grant exceptions across restart while ordinary bot changes st
   await bots.grantProject('chief', child.id, project.id, 'read');
   await expect(
     bots.update(child.id, { projects: [{ project: project.id, level: 'full' }] }),
-  ).rejects.toThrow('Proje');
+  ).rejects.toThrow('errors.projectCeiling');
   await bots.grantProject('chief', child.id, project.id, null);
   expect(bots.get(child.id).projects).toEqual([]);
 });
@@ -316,7 +316,7 @@ it('does not let a manually removed Chief exception resurrect an old project gra
   await bots.update(child.id, { projects: [] });
   await expect(
     bots.update(child.id, { projects: [{ project: project.id, level: 'full' }] }),
-  ).rejects.toThrow('Proje');
+  ).rejects.toThrow('errors.projectCeiling');
 });
 
 it('does not activate a Chief exception when its persistent record cannot be written', async () => {
@@ -328,14 +328,16 @@ it('does not activate a Chief exception when its persistent record cannot be wri
   expect(bots.get(child.id).projects).toEqual([]);
   await expect(
     bots.previewUpdate(child.id, { projects: [{ project: project.id, level: 'full' }] }, child.id),
-  ).rejects.toThrow('Proje');
+  ).rejects.toThrow('errors.projectCeiling');
 });
 
 it('keeps the bot sandbox ceiling independent of a parent Full project in another root', async () => {
   const full = await projects.save({ name: 'Full project', folders: [bots.dir] });
   const parent = testBot(work, { projects: [{ project: full.id, level: 'full' }] });
   const child = testBot(work, { sandbox: 'danger-full-access' });
-  await expect(assertCeiling(child, parent, projects.list())).rejects.toThrow('Sandbox');
+  await expect(assertCeiling(child, parent, projects.list())).rejects.toThrow(
+    'errors.sandboxCeiling',
+  );
 });
 it('checks Full and Writer ceilings per root rather than borrowing another project level', async () => {
   const parent = testBot(work, { sandbox: 'danger-full-access', readScope: [work, bots.dir] });
@@ -348,10 +350,10 @@ it('checks Full and Writer ceilings per root rather than borrowing another proje
       }),
       parent,
     ),
-  ).rejects.toThrow('Full');
+  ).rejects.toThrow('errors.fullCeiling');
   await expect(
     assertCeiling(testBot(bots.dir, { readScope: [bots.dir], writeScope: [bots.dir] }), parent),
-  ).rejects.toThrow('Yazma');
+  ).rejects.toThrow('errors.writeCeiling');
   await expect(
     assertCeiling(
       testBot(bots.dir, { sandbox: 'read-only', readScope: [bots.dir], writeScope: [] }),
@@ -360,7 +362,7 @@ it('checks Full and Writer ceilings per root rather than borrowing another proje
   ).resolves.toBeUndefined();
   await expect(
     assertCeiling(testBot(dir, { sandbox: 'read-only', writeScope: [] }), parent),
-  ).rejects.toThrow('Okuma');
+  ).rejects.toThrow('errors.readCeiling');
 });
 it('does not apply a Chief project exception to legacy Full roots', async () => {
   const project = await projects.save({ name: 'Approved project', folders: [bots.dir] });
@@ -484,7 +486,7 @@ it('trims Writer legacy roots and inherited grants to Reader on downgrade, inclu
         { ...draft, name: 'Escalation', sandbox: 'workspace-write', writeScope: [folder] },
         child.id,
       ),
-    ).rejects.toThrow('Sandbox');
+    ).rejects.toThrow('errors.sandboxCeiling');
   } finally {
     warning.mockRestore();
   }

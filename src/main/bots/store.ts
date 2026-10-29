@@ -79,7 +79,7 @@ export function chiefBot(workdir: string, language: 'tr' | 'en'): Bot {
       : chiefTemplate.split('<!-- en -->')[1].trim();
   return botSchema.parse({
     id: 'chief',
-    name: language === 'tr' ? 'Şef' : 'Chief',
+    name: translate(language, 'app.chief'),
     engine: 'claude',
     avatar: chiefAvatar,
     connections: ['*'],
@@ -258,21 +258,21 @@ export class BotStore extends EventEmitter {
       this.checkRoutineName({ ...metadata, instructions }, routine.name);
       const before = previousBot?.routines.find((value) => value.id === routine.id);
       if (routine.system && !(metadata.id === 'chief' && routine.id === vaultRoutine.id))
-        throw new Error('System routine protected');
+        throw new Error('errors.systemRoutineProtected');
       if (
         before?.system &&
         (routine.name !== before.name || routine.model !== before.model || !routine.system)
       )
-        throw new Error('System routine protected');
+        throw new Error('errors.systemRoutineProtected');
     }
     if (new Set(metadata.routines.map((routine) => routine.id)).size !== metadata.routines.length)
-      throw new Error('Duplicate routine ID');
+      throw new Error('errors.duplicateRoutine');
     if (
       previousBot?.routines.some(
         (routine) => routine.system && !metadata.routines.some((value) => value.id === routine.id),
       )
     )
-      throw new Error('System routine protected');
+      throw new Error('errors.systemRoutineProtected');
     await this.validateProjects({ ...metadata, instructions });
     const ceilings: [Bot, Bot][] = this.list()
       .filter((bot) => bot.parent === metadata.id)
@@ -282,7 +282,7 @@ export class BotStore extends EventEmitter {
         metadata.parent === metadata.id ||
         this.descendants(metadata.id).some((bot) => bot.id === metadata.parent)
       )
-        throw new Error('Bot hiyerarşisi döngü içeremez.');
+        throw new Error('errors.botHierarchyCycle');
       ceilings.unshift([{ ...metadata, instructions }, this.get(metadata.parent)]);
     }
     if (enforceCeiling) for (const [child, parent] of ceilings) await this.ceiling(child, parent);
@@ -323,18 +323,17 @@ export class BotStore extends EventEmitter {
       normalize(name) === normalize(bot.name) ||
       (bot.role && normalize(name) === normalize(bot.role))
     )
-      throw new Error('Rutin adı rol değil işin adı olmalı.');
+      throw new Error('errors.routineName');
   }
   previewRoutine(botId: string, input: RoutineDraft, callerId?: string): Routine {
-    if (callerId && !this.canManage(callerId, botId))
-      throw new Error('Bu botun rutinlerini düzenleme iznin yok.');
+    if (callerId && !this.canManage(callerId, botId)) throw new Error('errors.routinePermission');
     const bot = this.get(botId);
     const draft = routineDraftSchema.parse(input);
     const before = bot.routines.find((routine) => routine.id === draft.id);
-    if (draft.id && !before) throw new Error('Routine missing');
+    if (draft.id && !before) throw new Error('errors.routineMissing');
     this.checkRoutineName(bot, draft.name);
     if (before?.system && (draft.name !== before.name || draft.model !== before.model))
-      throw new Error('System routine protected');
+      throw new Error('errors.systemRoutineProtected');
     return routineSchema.parse({
       ...draft,
       id: before?.id ?? 'routine-' + randomUUID(),
@@ -354,7 +353,7 @@ export class BotStore extends EventEmitter {
         JSON.stringify(bot.routines.find((routine) => routine.id === expected.id)) !==
           JSON.stringify(expected)
       )
-        throw new Error('Routine changed while awaiting approval');
+        throw new Error('errors.routineApprovalChanged');
       const routine = this.previewRoutine(botId, input, callerId);
       bot.routines = [...bot.routines.filter((value) => value.id !== routine.id), routine];
       await this.persist(bot);
@@ -363,10 +362,10 @@ export class BotStore extends EventEmitter {
   }
   createRoutine(botId: string, routine: Routine, callerId: string): Promise<Routine> {
     return this.mutate(async () => {
-      if (!this.canManage(callerId, botId)) throw new Error('Routine permission denied');
+      if (!this.canManage(callerId, botId)) throw new Error('errors.routinePermission');
       const bot = this.get(botId);
       if (bot.routines.some((value) => value.id === routine.id) || routine.system)
-        throw new Error('Routine protected');
+        throw new Error('errors.routineProtected');
       await this.persist({ ...bot, routines: [...bot.routines, routine] });
       return routine;
     });
@@ -378,13 +377,12 @@ export class BotStore extends EventEmitter {
     expected?: Routine,
   ): Promise<void> {
     return this.mutate(async () => {
-      if (callerId && !this.canManage(callerId, botId))
-        throw new Error('Routine permission denied');
+      if (callerId && !this.canManage(callerId, botId)) throw new Error('errors.routinePermission');
       const bot = this.get(botId);
       const routine = bot.routines.find((value) => value.id === routineId);
-      if (!routine || routine.system) throw new Error('Routine protected or missing');
+      if (!routine || routine.system) throw new Error('errors.routineProtected');
       if (expected && JSON.stringify(routine) !== JSON.stringify(expected))
-        throw new Error('Routine changed while awaiting approval');
+        throw new Error('errors.routineApprovalChanged');
       await this.persist({
         ...bot,
         routines: bot.routines.filter((value) => value.id !== routineId),
@@ -436,9 +434,9 @@ export class BotStore extends EventEmitter {
           throw error;
       }
     }
-    if (matches.size > 1) throw new Error('Ambiguous report destination; use an absolute path');
+    if (matches.size > 1) throw new Error('errors.reportDestinationAmbiguous');
     const [path] = matches.values();
-    if (!path) throw new Error('Report destination must be a written note in an authorized folder');
+    if (!path) throw new Error('errors.reportDestinationInvalid');
     return path;
   }
   private async remove(id: string): Promise<void> {
@@ -483,7 +481,7 @@ export class BotStore extends EventEmitter {
     const caller = this.get(callerId);
     const parent = isChief(caller) ? (draft.parent ?? null) : callerId;
     if (!isChief(caller) && draft.parent !== undefined && draft.parent !== callerId)
-      throw new Error('Alt botun üstü çağıran bot olmalı.');
+      throw new Error('errors.childParent');
     const superior = parent ? this.get(parent) : caller;
     const slug =
       draft.name
@@ -526,11 +524,9 @@ export class BotStore extends EventEmitter {
     return this.mutate(async () => {
       if (!('id' in input)) return this.persist(await this.draft(input, callerId));
       const bot = botSchema.parse(input);
-      if (this.bots.has(bot.id))
-        throw new Error('Onaylanan bot kimliği artık kullanımda; yeni bir oluşturma isteyin.');
+      if (this.bots.has(bot.id)) throw new Error('errors.botIdTaken');
       const caller = this.get(callerId);
-      if (!isChief(caller) && bot.parent !== callerId)
-        throw new Error('Alt botun üstü çağıran bot olmalı.');
+      if (!isChief(caller) && bot.parent !== callerId) throw new Error('errors.childParent');
       await this.ceiling(bot, caller);
       return this.persist(bot);
     });
@@ -538,7 +534,7 @@ export class BotStore extends EventEmitter {
   async previewUpdate(id: string, input: BotPatch, callerId?: string): Promise<Bot> {
     const requester = callerId;
     callerId ??= 'chief';
-    if (!this.canManage(callerId, id)) throw new Error('Bu botu düzenleme iznin yok.');
+    if (!this.canManage(callerId, id)) throw new Error('errors.botEditPermission');
     const before = this.get(id);
     const patch = botPatchSchema.parse(input);
     const after = botSchema.parse({ ...before, ...patch });
@@ -554,7 +550,7 @@ export class BotStore extends EventEmitter {
       );
     if (after.parent) {
       if (after.parent === id || this.descendants(id).some((bot) => bot.id === after.parent))
-        throw new Error('Bot hiyerarşisi döngü içeremez.');
+        throw new Error('errors.botHierarchyCycle');
       await this.ceiling(after, this.get(after.parent));
     }
     for (const child of this.list().filter((bot) => bot.parent === id))
@@ -576,10 +572,10 @@ export class BotStore extends EventEmitter {
       throw new Error('errors.projectMissing');
     if (!isChief(caller)) {
       if (!this.descendants(callerId).some((bot) => bot.id === botId))
-        throw new Error('Yalnız alt soyuna proje izni verebilirsin.');
+        throw new Error('errors.projectDescendants');
       const grant = caller.projects.find((grant) => grant.project === projectId);
       if (!grant || (level !== null && accessRank[level] > accessRank[grant.level]))
-        throw new Error('Proje izni kendi seviyeni aşamaz.');
+        throw new Error('errors.projectLevel');
     }
     if (level !== null)
       await assertKnowledgeScope(

@@ -13,7 +13,7 @@ export type BotEvent =
       kind: 'file_read' | 'file_write' | 'command' | 'search' | 'mcp' | 'other';
       title: string;
       argsSummary: string;
-      /** Full changed paths, kept separately from truncated tool arguments. */
+      /** Full file paths, kept separately from truncated tool arguments. */
       files?: string[];
     }
   | { type: 'tool.end'; toolId: string; resultSummary: string; error: boolean }
